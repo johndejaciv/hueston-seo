@@ -1,5 +1,8 @@
 {
   "name": "hueston-seo",
   "version": "1.0.0",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@vercel/blob": "^0.23.0"
+  }
 }
