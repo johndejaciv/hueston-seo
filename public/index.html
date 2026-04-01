@@ -10,20 +10,20 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0f1623;color:#fff;font-family:'Inter',system-ui,sans-serif;min-height:100vh}
-  input::placeholder{color:#4a5f78}
-  @keyframes spin{to{transform:rotate(360deg)}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1623;color:#fff;font-family:'Inter',system-ui,sans-serif;min-height:100vh}
+input::placeholder{color:#4a5f78}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useCallback, useEffect } = React;
-
-const B = { navy:"#0f1623", navyMid:"#1a2332", navyLight:"#22304a", red:"#e8291c", gray:"#8b99ad" };
+const B = { navy:"#0f1623", mid:"#1a2332", light:"#22304a", red:"#e8291c", gray:"#8b99ad" };
 const card = { background:"#1a2332", border:"1px solid #22304a", borderRadius:10, overflow:"hidden" };
-const sc = s => s >= 70 ? "#22c55e" : s >= 40 ? "#f59e0b" : "#e8291c";
+const scoreCol = n => n >= 90 ? "#22c55e" : n >= 50 ? "#f59e0b" : "#e8291c";
+const metricCol = n => (n === null || n === undefined) ? "#8b99ad" : n >= 0.9 ? "#22c55e" : n >= 0.5 ? "#f59e0b" : "#e8291c";
 
 const POOL = [
   { id:"missing_title",     label:"Missing or empty title tag",           priority:"critical", category:"On-Page",         fix:"Add a unique descriptive title tag (50-60 chars) with the primary keyword near the front." },
@@ -43,49 +43,39 @@ const POOL = [
   { id:"thin_content",      label:"Thin content pages (under 300 words)", priority:"medium",   category:"Content",         fix:"Expand thin pages with helpful content that addresses user intent." },
   { id:"missing_og",        label:"Missing Open Graph tags",              priority:"medium",   category:"On-Page",         fix:"Add og:title, og:description, and og:image tags." },
 ];
-
 const PATHS = ["/","/about","/services","/blog","/contact","/pricing","/faq","/team","/work","/resources"];
 function rand(seed,n){return Math.abs(Math.sin(seed*9301+n*49297)*233280)%1}
-
-function demoScan(url) {
-  const seed = url.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
-  const issues = [];
-  POOL.forEach((check,i) => {
-    if (rand(seed,i) > (check.priority==="critical"?0.55:0.45)) return;
-    const count = Math.max(1,Math.floor(rand(seed+i,i+1)*8));
-    const affected = Array.from({length:count},(_,k)=>url.replace(/\/$/,"")+PATHS[k%PATHS.length]);
+function demoScan(url){
+  const seed=url.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
+  const issues=[];
+  POOL.forEach((check,i)=>{
+    if(rand(seed,i)>(check.priority==="critical"?0.55:0.45))return;
+    const count=Math.max(1,Math.floor(rand(seed+i,i+1)*8));
+    const affected=Array.from({length:count},(_,k)=>url.replace(/\/$/,"")+PATHS[k%PATHS.length]);
     issues.push({...check,count,affected});
   });
-  const passed = POOL.filter(c=>!issues.find(i=>i.id===c.id)).map(c=>c.label);
-  const crit = issues.filter(i=>i.priority==="critical").length;
-  const score = Math.max(10,Math.min(95,100-crit*12-(issues.length-crit)*4));
-  const summary = crit>3?"This site has several critical SEO issues suppressing rankings. Immediate attention needed.":crit>0?"The site has some critical issues to resolve soon.":"The site is in good SEO health. Focus on medium-priority items.";
-  return {url,score,summary,issues,passed,date:new Date().toISOString(),live:false};
+  const passed=POOL.filter(c=>!issues.find(i=>i.id===c.id)).map(c=>c.label);
+  const crit=issues.filter(i=>i.priority==="critical").length;
+  const score=Math.max(10,Math.min(95,100-crit*12-(issues.length-crit)*4));
+  return{url,score,summary:"Demo data — live scan failed. Check error message below.",issues,passed,date:new Date().toISOString(),live:false};
 }
-
 function auditPrompt(url){
-  return `SEO audit of ${url}. Search for: site:${url} and ${url} sitemap robots.txt pagespeed. Return ONLY JSON: {"url":"${url}","score":<0-100>,"summary":"<2 sentences>","issues":[{"id":"<id>","label":"<label>","priority":"critical or medium","category":"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility","count":<n>,"affected":["<url>"],"fix":"<fix>"}],"passed":["<label>"]}`;
+  return "SEO audit of "+url+". Search for: site:"+url+" and "+url+" sitemap robots pagespeed. Return ONLY JSON: {\"url\":\""+url+"\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<id>\",\"label\":\"<label>\",\"priority\":\"critical or medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}";
 }
-
 function notionPrompt(url,scan){
   const crit=scan.issues.filter(i=>i.priority==="critical");
   const med=scan.issues.filter(i=>i.priority==="medium");
-  return "Create a Notion SEO task. Respond ONLY with valid JSON no markdown: {\"title\":\"<site + month/year SEO Audit>\",\"priority\":\"High|Medium|Low\",\"body\":\"<markdown with ## Critical Issues ## Medium Issues ## Next Steps using - [ ] checkboxes>\"}. Site="+url+" Score="+scan.score+"/100 Summary="+scan.summary+" Critical("+crit.length+")="+crit.map(i=>i.label+": "+i.fix).join("; ")+" Medium("+med.length+")="+med.map(i=>i.label+": "+i.fix).join("; ");
+  return "Create a Notion SEO task. Respond ONLY with valid JSON: {\"title\":\"<site+month/year SEO Audit>\",\"priority\":\"High|Medium|Low\",\"body\":\"<markdown ## Critical Issues ## Medium Issues ## Next Steps with - [ ] checkboxes>\"}. Site="+url+" Score="+scan.score+"/100 Critical("+crit.length+")="+crit.map(i=>i.label+": "+i.fix).join("; ")+" Medium("+med.length+")="+med.map(i=>i.label+": "+i.fix).join("; ");
 }
-
 function extractDbId(input){
   const m=input.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
   return m?m[1]:input.trim();
 }
-
 function Spin(){return <span style={{width:13,height:13,border:"2px solid rgba(255,255,255,0.2)",borderTop:"2px solid #fff",borderRadius:"50%",display:"inline-block",animation:"spin .7s linear infinite",flexShrink:0}}/>}
-
 function Logo(){return(
   <span style={{display:"flex",alignItems:"center"}}>
     <span style={{fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:22,color:"#fff",letterSpacing:"-0.3px"}}>hueston</span>
-    <svg width="11" height="11" viewBox="0 0 11 11" style={{marginLeft:3,marginBottom:-1}}>
-      <rect x="1.5" y="1.5" width="8" height="8" rx="1" fill="#e8291c" transform="rotate(45 5.5 5.5)"/>
-    </svg>
+    <svg width="11" height="11" viewBox="0 0 11 11" style={{marginLeft:3,marginBottom:-1}}><rect x="1.5" y="1.5" width="8" height="8" rx="1" fill="#e8291c" transform="rotate(45 5.5 5.5)"/></svg>
   </span>
 )}
 
@@ -93,8 +83,10 @@ function App(){
   const [sites,setSites]=useState([]);
   const [newSite,setNewSite]=useState("");
   const [scans,setScans]=useState({});
+  const [pageSpeed,setPageSpeed]=useState({});
   const [scanning,setScanning]=useState({});
   const [logs,setLogs]=useState({});
+  const [scanErrors,setScanErrors]=useState({});
   const [notionLinks,setNotionLinks]=useState({});
   const [pushing,setPushing]=useState({});
   const [pushed,setPushed]=useState({});
@@ -107,15 +99,11 @@ function App(){
   const [dbErr,setDbErr]=useState(null);
 
   useEffect(()=>{
-    fetch("/api/sites")
-      .then(r=>r.json())
-      .then(data=>{
-        if(data.error) setDbErr(data.error);
-        if(data.sites) setSites(data.sites);
-        if(data.scans) setScans(data.scans);
-      })
-      .catch(e=>setDbErr(e.message))
-      .finally(()=>setLoading(false));
+    fetch("/api/sites").then(r=>r.json()).then(data=>{
+      if(data.error)setDbErr(data.error);
+      if(data.sites)setSites(data.sites);
+      if(data.scans)setScans(data.scans);
+    }).catch(e=>setDbErr(e.message)).finally(()=>setLoading(false));
   },[]);
 
   const log=(url,msg)=>setLogs(s=>({...s,[url]:msg}));
@@ -128,30 +116,23 @@ function App(){
     setNewSite("");
     const res=await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"add_site",url:v})});
     const data=await res.json();
-    if(data.sites) setSites(data.sites);
-    if(data.error) setDbErr(data.error);
+    if(data.sites)setSites(data.sites);
+    if(data.error)setDbErr(data.error);
   };
 
   const removeSite=async(url)=>{
     const res=await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"remove_site",url})});
     const data=await res.json();
-    if(data.sites) setSites(data.sites);
+    if(data.sites)setSites(data.sites);
     setScans(s=>{const n={...s};delete n[url];return n;});
     if(active===url){setActive(null);setView("dashboard");}
   };
 
-  const [scanErrors,setScanErrors]=useState({});
-
-  const [pageSpeed,setPageSpeed]=useState({});
-
   const runScan=useCallback(async(url)=>{
     setScanning(s=>({...s,[url]:true}));
     setScanErrors(s=>({...s,[url]:null}));
-    log(url,"Calling Claude API...");
-
-    // Run SEO scan + PageSpeed in parallel
-    const [seoResult, psResult] = await Promise.allSettled([
-      // SEO scan
+    log(url,"Scanning...");
+    const [seoRes,psRes]=await Promise.allSettled([
       fetch("/api/scan",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -163,38 +144,32 @@ function App(){
         }),
       }).then(async r=>{
         const raw=await r.text();
-        if(!r.ok) throw new Error("HTTP "+r.status+": "+raw.slice(0,300));
+        if(!r.ok)throw new Error("HTTP "+r.status+": "+raw.slice(0,300));
         const data=JSON.parse(raw);
-        if(data.error) throw new Error(JSON.stringify(data.error));
-        if(data.stop_reason==="max_tokens") throw new Error("Response cut off — max_tokens reached.");
+        if(data.error)throw new Error(JSON.stringify(data.error));
+        if(data.stop_reason==="max_tokens")throw new Error("Response cut off — max_tokens hit.");
         const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
         const match=text.match(/\{[\s\S]*\}/);
-        if(!match) throw new Error("No JSON found. Claude said: "+text.slice(0,300));
+        if(!match)throw new Error("No JSON found. Got: "+text.slice(0,200));
         return JSON.parse(match[0]);
       }),
-      // PageSpeed
-      fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile")
-        .then(r=>r.json())
-        .catch(()=>null),
+      fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile").then(r=>r.json()).catch(()=>null),
     ]);
-
-    if(seoResult.status==="fulfilled"){
-      const result={...seoResult.value,date:new Date().toISOString(),live:true};
+    if(seoRes.status==="fulfilled"){
+      const result={...seoRes.value,date:new Date().toISOString(),live:true};
       setScans(s=>({...s,[url]:result}));
       log(url,"✓ Live scan complete");
-      await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})});
+      fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})}).catch(()=>{});
     } else {
-      setScanErrors(s=>({...s,[url]:seoResult.reason.message}));
-      log(url,"✓ Loaded demo data");
+      setScanErrors(s=>({...s,[url]:seoRes.reason.message}));
+      log(url,"Scan failed — demo data loaded");
       const demo=demoScan(url);
       setScans(s=>({...s,[url]:demo}));
-      await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:demo})}).catch(()=>{});
+      fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:demo})}).catch(()=>{});
     }
-
-    if(psResult.status==="fulfilled" && psResult.value && !psResult.value.error){
-      setPageSpeed(s=>({...s,[url]:psResult.value}));
+    if(psRes.status==="fulfilled"&&psRes.value&&!psRes.value.error){
+      setPageSpeed(s=>({...s,[url]:psRes.value}));
     }
-
     setScanning(s=>({...s,[url]:false}));
   },[]);
 
@@ -208,21 +183,10 @@ function App(){
     setPushErr(s=>({...s,[url]:null}));
     setPushed(s=>({...s,[url]:false}));
     try{
-      const res=await fetch("/api/scan",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
-          mcp_servers:[{type:"url",url:"https://mcp.notion.com/mcp",name:"notion"}],
-          messages:[{role:"user",content:"Create a new page in Notion database ID: "+dbId+". "+notionPrompt(url,scan)+" Use the create-pages tool now."}],
-        }),
-      });
-      if(!res.ok) throw new Error("HTTP "+res.status);
+      const res=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,mcp_servers:[{type:"url",url:"https://mcp.notion.com/mcp",name:"notion"}],messages:[{role:"user",content:"Create a new page in Notion database ID: "+dbId+". "+notionPrompt(url,scan)+" Use the create-pages tool now."}]})});
+      if(!res.ok)throw new Error("HTTP "+res.status);
       setPushed(s=>({...s,[url]:true}));
-    }catch(e){
-      setPushErr(s=>({...s,[url]:e.message}));
-    }
+    }catch(e){setPushErr(s=>({...s,[url]:e.message}));}
     setPushing(s=>({...s,[url]:false}));
   };
 
@@ -235,11 +199,7 @@ function App(){
   const totalCrit=sites.reduce((a,u)=>a+getCrit(u),0);
   const totalMed=sites.reduce((a,u)=>a+getMed(u),0);
 
-  if(loading)return(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:16}}>
-      <Spin/><div style={{color:B.gray,fontSize:14}}>Loading your sites...</div>
-    </div>
-  );
+  if(loading)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:16}}><Spin/><div style={{color:B.gray,fontSize:14}}>Loading...</div></div>);
 
   return(
     <div style={{background:"#0f1623",minHeight:"100vh"}}>
@@ -257,12 +217,7 @@ function App(){
       </div>
 
       <div style={{maxWidth:1100,margin:"0 auto",padding:"28px 24px"}}>
-
-        {dbErr&&(
-          <div style={{background:"rgba(232,41,28,.1)",border:"1px solid rgba(232,41,28,.3)",borderRadius:10,padding:"12px 18px",marginBottom:20,fontSize:13,color:"#e8291c"}}>
-            ⚠ Database error: {dbErr} — check that your Blob store is connected to this project in Vercel.
-          </div>
-        )}
+        {dbErr&&<div style={{background:"rgba(232,41,28,.1)",border:"1px solid rgba(232,41,28,.3)",borderRadius:10,padding:"12px 18px",marginBottom:20,fontSize:13,color:"#e8291c"}}>⚠ Database error: {dbErr}</div>}
 
         {view==="dashboard"&&(
           <div>
@@ -274,16 +229,13 @@ function App(){
                 </div>
               ))}
             </div>
-
             <div style={{...card,padding:"18px 20px",marginBottom:22}}>
               <div style={{fontSize:11,fontWeight:600,color:B.gray,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:12}}>Add Client Site</div>
               <div style={{display:"flex",gap:10}}>
-                <input value={newSite} onChange={e=>setNewSite(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addSite()} placeholder="https://clientsite.com"
-                  style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"9px 14px",color:"#fff",fontSize:14,outline:"none"}}/>
+                <input value={newSite} onChange={e=>setNewSite(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addSite()} placeholder="https://clientsite.com" style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"9px 14px",color:"#fff",fontSize:14,outline:"none"}}/>
                 <button onClick={addSite} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"9px 20px",fontWeight:600,fontSize:13,cursor:"pointer"}}>Add</button>
               </div>
             </div>
-
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               {sites.length===0&&!dbErr&&(
                 <div style={{textAlign:"center",padding:"60px 0",color:B.gray}}>
@@ -296,57 +248,34 @@ function App(){
                 const s=scans[url];
                 const isScanning=scanning[url];
                 const score=s?.score;
-                const errLog=logs[url]&&logs[url].startsWith("Error");
                 return(
                   <div key={url} style={card}>
                     <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px"}}>
-                      {score!==undefined&&(
-                        <div style={{textAlign:"center",minWidth:48,flexShrink:0}}>
-                          <div style={{fontSize:22,fontWeight:800,color:sc(score),lineHeight:1}}>{score}</div>
-                          <div style={{fontSize:10,color:B.gray,textTransform:"uppercase",marginTop:2}}>Score</div>
-                        </div>
-                      )}
+                      {score!==undefined&&<div style={{textAlign:"center",minWidth:48,flexShrink:0}}><div style={{fontSize:22,fontWeight:800,color:scoreCol(score),lineHeight:1}}>{score}</div><div style={{fontSize:10,color:B.gray,textTransform:"uppercase",marginTop:2}}>Score</div></div>}
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{url}</div>
-                        <div style={{fontSize:12,color:errLog?"#e8291c":B.gray,marginTop:3}}>
-                          {isScanning?(logs[url]||"Starting..."):s?"Scanned "+new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+(s.live?" (live)":" (demo)"):logs[url]||"Not yet scanned"}
-                        </div>
+                        <div style={{fontSize:12,color:B.gray,marginTop:3}}>{isScanning?(logs[url]||"Starting..."):s?"Scanned "+new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+(s.live?" (live)":" (demo)"):logs[url]||"Not yet scanned"}</div>
                       </div>
-                      {s&&!isScanning&&(
-                        <div style={{display:"flex",gap:8,flexShrink:0}}>
-                          <span style={{background:"rgba(232,41,28,.15)",color:"#e8291c",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getCrit(url)} Critical</span>
-                          <span style={{background:"rgba(245,158,11,.15)",color:"#f59e0b",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getMed(url)} Medium</span>
-                        </div>
-                      )}
+                      {s&&!isScanning&&<div style={{display:"flex",gap:8,flexShrink:0}}><span style={{background:"rgba(232,41,28,.15)",color:"#e8291c",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getCrit(url)} Critical</span><span style={{background:"rgba(245,158,11,.15)",color:"#f59e0b",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getMed(url)} Medium</span></div>}
                       <div style={{display:"flex",gap:8,flexShrink:0}}>
-                        {s&&!isScanning&&(
-                          <button onClick={()=>{setActive(url);setView("results");setTab("all");setExpanded(null);}} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>
-                        )}
-                        <button onClick={()=>runScan(url)} disabled={isScanning}
-                          style={{background:isScanning?"#22304a":"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:isScanning?"default":"pointer",opacity:isScanning?0.6:1,display:"flex",alignItems:"center",gap:6}}>
-                          {isScanning?<><Spin/> Scanning...</>:s?"Re-scan":"Scan Now"}
-                        </button>
+                        {s&&!isScanning&&<button onClick={()=>{setActive(url);setView("results");setTab("all");setExpanded(null);}} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>}
+                        <button onClick={()=>runScan(url)} disabled={isScanning} style={{background:isScanning?"#22304a":"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:isScanning?"default":"pointer",opacity:isScanning?0.6:1,display:"flex",alignItems:"center",gap:6}}>{isScanning?<><Spin/> Scanning...</>:s?"Re-scan":"Scan Now"}</button>
                         <button onClick={()=>removeSite(url)} style={{background:"none",color:B.gray,border:"1px solid #22304a",borderRadius:6,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
                       </div>
                     </div>
                     {s&&!isScanning&&(
                       <div style={{borderTop:"1px solid #22304a",padding:"11px 20px",background:"#0c1520",display:"flex",alignItems:"center",gap:10}}>
                         <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
-                        <input value={notionLinks[url]||""} onChange={e=>setNotionLinks(s=>({...s,[url]:e.target.value}))} placeholder="Paste Notion database URL or ID..."
-                          style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}/>
-                        <button onClick={()=>doPush(url)} disabled={pushing[url]}
-                          style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0,opacity:pushing[url]?0.7:1}}>
-                          {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent to Notion":"→ Push to Notion"}
-                        </button>
+                        <input value={notionLinks[url]||""} onChange={e=>setNotionLinks(s=>({...s,[url]:e.target.value}))} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}/>
+                        <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0,opacity:pushing[url]?0.7:1}}>{pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent to Notion":"→ Push to Notion"}</button>
                       </div>
                     )}
-                    {pushErr[url]&&<div style={{borderTop:"1px solid rgba(232,41,28,.2)",padding:"8px 20px",background:"rgba(232,41,28,.08)",fontSize:12,color:"#e8291c"}}>Notion error: {pushErr[url]}</div>}
                     {scanErrors[url]&&<div style={{borderTop:"1px solid rgba(245,158,11,.2)",padding:"10px 20px",background:"rgba(245,158,11,.06)",fontSize:12,color:"#f59e0b"}}><strong>⚠ Live scan failed — showing demo data.</strong> Error: {scanErrors[url]}</div>}
+                    {pushErr[url]&&<div style={{borderTop:"1px solid rgba(232,41,28,.2)",padding:"8px 20px",background:"rgba(232,41,28,.08)",fontSize:12,color:"#e8291c"}}>Notion error: {pushErr[url]}</div>}
                   </div>
                 );
               })}
             </div>
-
             <div style={{marginTop:24,background:"rgba(232,41,28,.08)",border:"1px solid rgba(232,41,28,.25)",borderRadius:10,padding:"14px 18px",display:"flex",gap:12,alignItems:"center"}}>
               <span style={{fontSize:18}}>📅</span>
               <div>
@@ -366,9 +295,10 @@ function App(){
               {scan.summary&&<div style={{background:"#1a2332",border:"1px solid #22304a",borderRadius:10,padding:"14px 18px",fontSize:14,color:"#a8bbd4",lineHeight:1.7}}>{scan.summary}</div>}
             </div>
 
+            {/* SEO Score Cards */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
               {[
-                {label:"SEO Score",val:scan.score+"/100",color:sc(scan.score)},
+                {label:"SEO Score",val:scan.score+"/100",color:scoreCol(scan.score)},
                 {label:"Critical",val:issues.filter(i=>i.priority==="critical").length,color:"#e8291c"},
                 {label:"Medium",val:issues.filter(i=>i.priority==="medium").length,color:"#f59e0b"},
                 {label:"Passed",val:(scan.passed||[]).length,color:"#22c55e"},
@@ -383,16 +313,14 @@ function App(){
             {/* PageSpeed Section */}
             {pageSpeed[active]&&(()=>{
               const ps=pageSpeed[active];
-              const scoreCol=n=>n>=90?"#22c55e":n>=50?"#f59e0b":"#e8291c";
-              const metricCol=n=>n===null||n===undefined?"#8b99ad":n>=0.9?"#22c55e":n>=0.5?"#f59e0b":"#e8291c";
               return(
                 <div style={{...card,padding:"18px 20px",marginBottom:20}}>
                   <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:16}}>Google PageSpeed — Mobile</div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
                     {[
-                      {label:"Performance", val:ps.scores.performance},
-                      {label:"SEO",          val:ps.scores.seo},
-                      {label:"Accessibility",val:ps.scores.accessibility},
+                      {label:"Performance",   val:ps.scores.performance},
+                      {label:"SEO",           val:ps.scores.seo},
+                      {label:"Accessibility", val:ps.scores.accessibility},
                       {label:"Best Practices",val:ps.scores.bestPractices},
                     ].map(s=>(
                       <div key={s.label} style={{background:scoreCol(s.val)+"18",border:"1px solid "+scoreCol(s.val)+"35",borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
@@ -401,14 +329,14 @@ function App(){
                       </div>
                     ))}
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:ps.opportunities?.length?16:0}}>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:ps.opportunities&&ps.opportunities.length?16:0}}>
                     {[
-                      {label:"First Contentful Paint", ...ps.metrics.fcp},
+                      {label:"First Contentful Paint",  ...ps.metrics.fcp},
                       {label:"Largest Contentful Paint",...ps.metrics.lcp},
-                      {label:"Total Blocking Time",    ...ps.metrics.tbt},
-                      {label:"Cumulative Layout Shift",...ps.metrics.cls},
-                      {label:"Speed Index",            ...ps.metrics.si},
-                      {label:"Time to First Byte",     ...ps.metrics.ttfb},
+                      {label:"Total Blocking Time",     ...ps.metrics.tbt},
+                      {label:"Cumulative Layout Shift", ...ps.metrics.cls},
+                      {label:"Speed Index",             ...ps.metrics.si},
+                      {label:"Time to First Byte",      ...ps.metrics.ttfb},
                     ].map(m=>(
                       <div key={m.label} style={{background:"#0c1520",borderRadius:8,padding:"10px 14px"}}>
                         <div style={{fontSize:11,color:B.gray,marginBottom:4}}>{m.label}</div>
@@ -416,9 +344,9 @@ function App(){
                       </div>
                     ))}
                   </div>
-                  {ps.opportunities?.length>0&&(
-                    <>
-                      <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10,marginTop:4}}>Top Opportunities</div>
+                  {ps.opportunities&&ps.opportunities.length>0&&(
+                    <div>
+                      <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>Top Opportunities</div>
                       <div style={{display:"flex",flexDirection:"column",gap:6}}>
                         {ps.opportunities.map(o=>(
                           <div key={o.id} style={{display:"flex",alignItems:"center",gap:10,fontSize:13}}>
@@ -428,24 +356,23 @@ function App(){
                           </div>
                         ))}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               );
             })()}
+
+            {/* Notion Push */}
+            <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
-              <input value={notionLinks[active]||""} onChange={e=>setNotionLinks(s=>({...s,[active]:e.target.value}))} placeholder="Paste Notion database URL or ID..."
-                style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"7px 12px",color:"#fff",fontSize:13,outline:"none"}}/>
-              <button onClick={()=>doPush(active)} disabled={pushing[active]}
-                style={{background:pushed[active]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-                {pushing[active]?<><Spin/> Pushing...</>:pushed[active]?"✓ Sent":"→ Push to Notion"}
-              </button>
+              <input value={notionLinks[active]||""} onChange={e=>setNotionLinks(s=>({...s,[active]:e.target.value}))} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"7px 12px",color:"#fff",fontSize:13,outline:"none"}}/>
+              <button onClick={()=>doPush(active)} disabled={pushing[active]} style={{background:pushed[active]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>{pushing[active]?<><Spin/> Pushing...</>:pushed[active]?"✓ Sent":"→ Push to Notion"}</button>
             </div>
 
+            {/* Tabs */}
             <div style={{display:"flex",gap:4,marginBottom:20,background:"#1a2332",borderRadius:8,padding:4,width:"fit-content",border:"1px solid #22304a"}}>
               {[["all","All Issues"],["critical","Critical"],["medium","Medium"]].map(([k,l])=>(
-                <button key={k} onClick={()=>{setTab(k);setExpanded(null);}}
-                  style={{background:tab===k?"#e8291c":"none",color:tab===k?"#fff":B.gray,border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
+                <button key={k} onClick={()=>{setTab(k);setExpanded(null);}} style={{background:tab===k?"#e8291c":"none",color:tab===k?"#fff":B.gray,border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
               ))}
             </div>
 
@@ -507,7 +434,6 @@ function App(){
     </div>
   );
 }
-
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
