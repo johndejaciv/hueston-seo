@@ -1,16 +1,24 @@
 import { put, list } from "@vercel/blob";
 
-async function getSites() {
+async function getJson(key) {
   try {
-    const { blobs } = await list({ prefix: "sites.json" });
-    if (!blobs.length) return [];
-    const res = await fetch(blobs[0].url);
+    const { blobs } = await list({ prefix: key });
+    if (!blobs.length) return null;
+    const res = await fetch(blobs[0].downloadUrl);
     return await res.json();
-  } catch { return []; }
+  } catch { return null; }
+}
+
+async function putJson(key, data) {
+  await put(key, JSON.stringify(data), {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
 }
 
 export default async function handler(req, res) {
-  const sites = await getSites();
+  const sites = (await getJson("sites.json")) || [];
 
   if (sites.length === 0) {
     return res.status(200).json({ message: "No sites in database yet" });
@@ -26,7 +34,7 @@ export default async function handler(req, res) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
+          max_tokens: 2000,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{ role: "user", content: buildPrompt(url) }],
         }),
@@ -36,8 +44,7 @@ export default async function handler(req, res) {
       const match = text.match(/\{[\s\S]*\}/);
       if (match) {
         const result = { ...JSON.parse(match[0]), date: new Date().toISOString(), live: true };
-        const key = "scan-" + encodeURIComponent(url) + ".json";
-        await put(key, JSON.stringify(result), { access: "public", addRandomSuffix: false });
+        await putJson("scan-" + encodeURIComponent(url) + ".json", result);
         results.push({ url, status: "ok", score: result.score });
       } else {
         results.push({ url, status: "no_json" });
@@ -51,5 +58,5 @@ export default async function handler(req, res) {
 }
 
 function buildPrompt(url) {
-  return "You are an expert SEO auditor. Audit this site: " + url + ". Check title tags, meta descriptions, H1/H2, canonicals, noindex, sitemap, robots.txt, page speed, images, internal links, schema, mobile viewport, HTTPS, Core Web Vitals, thin content, alt text, Open Graph. Respond ONLY with valid JSON, no markdown: {\"url\":\"" + url + "\",\"score\":<0-100>,\"summary\":\"<2-3 sentences>\",\"issues\":[{\"id\":\"<id>\",\"label\":\"<label>\",\"priority\":\"critical or medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}";
+  return `You are an expert technical SEO auditor. Audit the website at: ${url}. Use web_search to fetch the homepage, check ${url}/sitemap.xml and ${url}/robots.txt, and look up PageSpeed data. Respond ONLY with valid JSON no markdown: {"url":"${url}","score":<0-100>,"summary":"<2-3 sentences>","issues":[{"id":"<id>","label":"<label>","priority":"critical or medium","category":"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility","count":<n>,"affected":["<url>"],"fix":"<fix>"}],"passed":["<label>"]}`;
 }
