@@ -64,21 +64,7 @@ function demoScan(url) {
 }
 
 function auditPrompt(url){
-  return `You are an expert technical SEO auditor. Your job is to audit the website at: ${url}
-
-Use the web_search tool to:
-1. Fetch the homepage HTML directly by searching: site:${url}
-2. Check for sitemap at ${url}/sitemap.xml
-3. Check for robots.txt at ${url}/robots.txt
-4. Search for any known SEO issues: "${url} site:search.google.com" or related queries
-5. Look up the site's Google PageSpeed or Core Web Vitals data if available
-
-Based on everything you find, produce a real technical SEO audit. Do NOT say you cannot audit the site — always return your best assessment based on available signals.
-
-You MUST respond with ONLY a valid JSON object, no explanation, no markdown fences:
-{"url":"${url}","score":<integer 0-100>,"summary":"<2-3 sentence plain English summary>","issues":[{"id":"<snake_case_id>","label":"<issue name>","priority":"critical or medium","category":"On-Page or Technical or Indexability or Performance or Content or Structured Data or Accessibility","count":<number>,"affected":["<url or element>"],"fix":"<specific actionable fix>"}],"passed":["<name of check that passed>"]}
-
-Be specific. Include real URLs where possible. Only include issues you have evidence for.`;
+  return `SEO audit of ${url}. Search for: site:${url} and ${url} sitemap robots.txt pagespeed. Return ONLY JSON: {"url":"${url}","score":<0-100>,"summary":"<2 sentences>","issues":[{"id":"<id>","label":"<label>","priority":"critical or medium","category":"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility","count":<n>,"affected":["<url>"],"fix":"<fix>"}],"passed":["<label>"]}`;
 }
 
 function notionPrompt(url,scan){
