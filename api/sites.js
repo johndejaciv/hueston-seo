@@ -1,31 +1,20 @@
-import { put, get, list } from "@vercel/blob";
+import { put, list, getDownloadUrl } from "@vercel/blob";
 
-async function getSites() {
+async function getJson(key) {
   try {
-    const { blobs } = await list({ prefix: "sites.json" });
-    if (!blobs.length) return [];
-    const res = await fetch(blobs[0].url);
-    return await res.json();
-  } catch { return []; }
-}
-
-async function saveSites(sites) {
-  await put("sites.json", JSON.stringify(sites), { access: "public", addRandomSuffix: false });
-}
-
-async function getScan(url) {
-  try {
-    const key = "scan-" + encodeURIComponent(url) + ".json";
     const { blobs } = await list({ prefix: key });
     if (!blobs.length) return null;
-    const res = await fetch(blobs[0].url);
+    const res = await fetch(blobs[0].downloadUrl);
     return await res.json();
   } catch { return null; }
 }
 
-async function saveScan(url, scan) {
-  const key = "scan-" + encodeURIComponent(url) + ".json";
-  await put(key, JSON.stringify(scan), { access: "public", addRandomSuffix: false });
+async function putJson(key, data) {
+  await put(key, JSON.stringify(data), {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
 }
 
 export default async function handler(req, res) {
@@ -36,10 +25,10 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     try {
-      const sites = await getSites();
+      const sites = (await getJson("sites.json")) || [];
       const scans = {};
       for (const url of sites) {
-        const scan = await getScan(url);
+        const scan = await getJson("scan-" + encodeURIComponent(url) + ".json");
         if (scan) scans[url] = scan;
       }
       return res.status(200).json({ sites, scans });
@@ -52,20 +41,20 @@ export default async function handler(req, res) {
     const { action, url, scan } = req.body;
     try {
       if (action === "add_site") {
-        const sites = await getSites();
+        const sites = (await getJson("sites.json")) || [];
         if (!sites.includes(url)) {
           sites.push(url);
-          await saveSites(sites);
+          await putJson("sites.json", sites);
         }
         return res.status(200).json({ ok: true, sites });
       }
       if (action === "save_scan") {
-        await saveScan(url, scan);
+        await putJson("scan-" + encodeURIComponent(url) + ".json", scan);
         return res.status(200).json({ ok: true });
       }
       if (action === "remove_site") {
-        const sites = (await getSites()).filter(s => s !== url);
-        await saveSites(sites);
+        const sites = ((await getJson("sites.json")) || []).filter(s => s !== url);
+        await putJson("sites.json", sites);
         return res.status(200).json({ ok: true, sites });
       }
       return res.status(400).json({ error: "Unknown action" });
