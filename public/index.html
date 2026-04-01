@@ -154,8 +154,11 @@ function App(){
     if(active===url){setActive(null);setView("dashboard");}
   };
 
+  const [scanErrors,setScanErrors]=useState({});
+
   const runScan=useCallback(async(url)=>{
     setScanning(s=>({...s,[url]:true}));
+    setScanErrors(s=>({...s,[url]:null}));
     log(url,"Calling Claude API...");
     try{
       const res=await fetch("/api/scan",{
@@ -163,25 +166,27 @@ function App(){
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
           model:"claude-sonnet-4-20250514",
-          max_tokens:2000,
+          max_tokens:4000,
           tools:[{type:"web_search_20250305",name:"web_search"}],
           messages:[{role:"user",content:auditPrompt(url)}],
         }),
       });
       log(url,"HTTP "+res.status);
       const raw=await res.text();
-      if(!res.ok) throw new Error("HTTP "+res.status+": "+raw.slice(0,150));
+      if(!res.ok) throw new Error("HTTP "+res.status+": "+raw.slice(0,300));
       const data=JSON.parse(raw);
       if(data.error) throw new Error(JSON.stringify(data.error));
+      if(data.stop_reason==="max_tokens") throw new Error("Response cut off — max_tokens reached. Try again.");
       const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
       const match=text.match(/\{[\s\S]*\}/);
-      if(!match) throw new Error("No JSON in response — got: "+text.slice(0,200));
+      if(!match) throw new Error("No JSON found in response. Claude said: "+text.slice(0,300));
       const result={...JSON.parse(match[0]),date:new Date().toISOString(),live:true};
       setScans(s=>({...s,[url]:result}));
       log(url,"✓ Live scan complete");
       await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})});
     }catch(e){
-      log(url,"Error: "+e.message+" — showing demo data");
+      setScanErrors(s=>({...s,[url]:e.message}));
+      log(url,"✓ Loaded demo data");
       const demo=demoScan(url);
       setScans(s=>({...s,[url]:demo}));
       await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:demo})}).catch(()=>{});
@@ -332,6 +337,7 @@ function App(){
                       </div>
                     )}
                     {pushErr[url]&&<div style={{borderTop:"1px solid rgba(232,41,28,.2)",padding:"8px 20px",background:"rgba(232,41,28,.08)",fontSize:12,color:"#e8291c"}}>Notion error: {pushErr[url]}</div>}
+                    {scanErrors[url]&&<div style={{borderTop:"1px solid rgba(245,158,11,.2)",padding:"10px 20px",background:"rgba(245,158,11,.06)",fontSize:12,color:"#f59e0b"}}><strong>⚠ Live scan failed — showing demo data.</strong> Error: {scanErrors[url]}</div>}
                   </div>
                 );
               })}
