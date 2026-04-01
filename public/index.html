@@ -142,12 +142,17 @@ function App(){
 
   const [scanErrors,setScanErrors]=useState({});
 
+  const [pageSpeed,setPageSpeed]=useState({});
+
   const runScan=useCallback(async(url)=>{
     setScanning(s=>({...s,[url]:true}));
     setScanErrors(s=>({...s,[url]:null}));
     log(url,"Calling Claude API...");
-    try{
-      const res=await fetch("/api/scan",{
+
+    // Run SEO scan + PageSpeed in parallel
+    const [seoResult, psResult] = await Promise.allSettled([
+      // SEO scan
+      fetch("/api/scan",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
@@ -156,27 +161,40 @@ function App(){
           tools:[{type:"web_search_20250305",name:"web_search"}],
           messages:[{role:"user",content:auditPrompt(url)}],
         }),
-      });
-      log(url,"HTTP "+res.status);
-      const raw=await res.text();
-      if(!res.ok) throw new Error("HTTP "+res.status+": "+raw.slice(0,300));
-      const data=JSON.parse(raw);
-      if(data.error) throw new Error(JSON.stringify(data.error));
-      if(data.stop_reason==="max_tokens") throw new Error("Response cut off — max_tokens reached. Try again.");
-      const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-      const match=text.match(/\{[\s\S]*\}/);
-      if(!match) throw new Error("No JSON found in response. Claude said: "+text.slice(0,300));
-      const result={...JSON.parse(match[0]),date:new Date().toISOString(),live:true};
+      }).then(async r=>{
+        const raw=await r.text();
+        if(!r.ok) throw new Error("HTTP "+r.status+": "+raw.slice(0,300));
+        const data=JSON.parse(raw);
+        if(data.error) throw new Error(JSON.stringify(data.error));
+        if(data.stop_reason==="max_tokens") throw new Error("Response cut off — max_tokens reached.");
+        const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+        const match=text.match(/\{[\s\S]*\}/);
+        if(!match) throw new Error("No JSON found. Claude said: "+text.slice(0,300));
+        return JSON.parse(match[0]);
+      }),
+      // PageSpeed
+      fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile")
+        .then(r=>r.json())
+        .catch(()=>null),
+    ]);
+
+    if(seoResult.status==="fulfilled"){
+      const result={...seoResult.value,date:new Date().toISOString(),live:true};
       setScans(s=>({...s,[url]:result}));
       log(url,"✓ Live scan complete");
       await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})});
-    }catch(e){
-      setScanErrors(s=>({...s,[url]:e.message}));
+    } else {
+      setScanErrors(s=>({...s,[url]:seoResult.reason.message}));
       log(url,"✓ Loaded demo data");
       const demo=demoScan(url);
       setScans(s=>({...s,[url]:demo}));
       await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:demo})}).catch(()=>{});
     }
+
+    if(psResult.status==="fulfilled" && psResult.value && !psResult.value.error){
+      setPageSpeed(s=>({...s,[url]:psResult.value}));
+    }
+
     setScanning(s=>({...s,[url]:false}));
   },[]);
 
@@ -362,7 +380,59 @@ function App(){
               ))}
             </div>
 
-            <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
+            {/* PageSpeed Section */}
+            {pageSpeed[active]&&(()=>{
+              const ps=pageSpeed[active];
+              const scoreCol=n=>n>=90?"#22c55e":n>=50?"#f59e0b":"#e8291c";
+              const metricCol=n=>n===null||n===undefined?"#8b99ad":n>=0.9?"#22c55e":n>=0.5?"#f59e0b":"#e8291c";
+              return(
+                <div style={{...card,padding:"18px 20px",marginBottom:20}}>
+                  <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:16}}>Google PageSpeed — Mobile</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
+                    {[
+                      {label:"Performance", val:ps.scores.performance},
+                      {label:"SEO",          val:ps.scores.seo},
+                      {label:"Accessibility",val:ps.scores.accessibility},
+                      {label:"Best Practices",val:ps.scores.bestPractices},
+                    ].map(s=>(
+                      <div key={s.label} style={{background:scoreCol(s.val)+"18",border:"1px solid "+scoreCol(s.val)+"35",borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
+                        <div style={{fontSize:24,fontWeight:800,color:scoreCol(s.val)}}>{s.val}</div>
+                        <div style={{fontSize:11,color:scoreCol(s.val),marginTop:4}}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:ps.opportunities?.length?16:0}}>
+                    {[
+                      {label:"First Contentful Paint", ...ps.metrics.fcp},
+                      {label:"Largest Contentful Paint",...ps.metrics.lcp},
+                      {label:"Total Blocking Time",    ...ps.metrics.tbt},
+                      {label:"Cumulative Layout Shift",...ps.metrics.cls},
+                      {label:"Speed Index",            ...ps.metrics.si},
+                      {label:"Time to First Byte",     ...ps.metrics.ttfb},
+                    ].map(m=>(
+                      <div key={m.label} style={{background:"#0c1520",borderRadius:8,padding:"10px 14px"}}>
+                        <div style={{fontSize:11,color:B.gray,marginBottom:4}}>{m.label}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:metricCol(m.score)}}>{m.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {ps.opportunities?.length>0&&(
+                    <>
+                      <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10,marginTop:4}}>Top Opportunities</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                        {ps.opportunities.map(o=>(
+                          <div key={o.id} style={{display:"flex",alignItems:"center",gap:10,fontSize:13}}>
+                            <span style={{width:8,height:8,borderRadius:"50%",background:o.score<0.5?"#e8291c":"#f59e0b",flexShrink:0,display:"inline-block"}}/>
+                            <span style={{flex:1,color:"#a8bbd4"}}>{o.label}</span>
+                            {o.savings&&<span style={{color:B.gray,fontSize:12,whiteSpace:"nowrap"}}>{o.savings}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
               <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
               <input value={notionLinks[active]||""} onChange={e=>setNotionLinks(s=>({...s,[active]:e.target.value}))} placeholder="Paste Notion database URL or ID..."
                 style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"7px 12px",color:"#fff",fontSize:13,outline:"none"}}/>
