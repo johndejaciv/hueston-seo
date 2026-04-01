@@ -4,14 +4,14 @@ async function getJson(key) {
   try {
     const { blobs } = await list({ prefix: key });
     if (!blobs.length) return null;
-    const res = await fetch(blobs[0].downloadUrl);
+    const res = await fetch(blobs[0].url);
     return await res.json();
   } catch { return null; }
 }
 
 async function putJson(key, data) {
   await put(key, JSON.stringify(data), {
-    access: "private",
+    access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
   });
@@ -24,7 +24,10 @@ export default async function handler(req, res) {
     return res.status(200).json({ message: "No sites in database yet" });
   }
 
-  const base = process.env.VERCEL_URL ? "https://" + process.env.VERCEL_URL : "http://localhost:3000";
+  const base = process.env.VERCEL_URL
+    ? "https://" + process.env.VERCEL_URL
+    : "http://localhost:3000";
+
   const results = [];
 
   for (const url of sites) {
