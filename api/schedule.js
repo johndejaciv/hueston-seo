@@ -61,7 +61,7 @@ export default async function handler(req, res) {
         if (siteSettings.notionLink) {
           const dbId = extractDbId(siteSettings.notionLink);
           const due = getEndOfMonth();
-          const mention = siteSettings.notionUser ? " Assign to user ID: " + siteSettings.notionUser + "." : "";
+          const mention = siteSettings.notionUser ? " Find the Notion workspace member named '" + siteSettings.notionUser + "' and assign them to this page." : "";
           await fetch(base + "/api/scan", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
