@@ -30,6 +30,8 @@ export default async function handler(req, res) {
 
   const results = [];
 
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+
   for (const url of sites) {
     try {
       const scanRes = await fetch(base + "/api/scan", {
@@ -55,6 +57,7 @@ export default async function handler(req, res) {
     } catch (e) {
       results.push({ url, status: "error", error: e.message });
     }
+    await delay(5000); // wait 5s between scans to avoid rate limits
   }
 
   return res.status(200).json({ scanned: results.length, results });
