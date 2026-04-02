@@ -101,7 +101,7 @@ function App(){
   const [scanErrors,setScanErrors]=useState({});
   const [notionLinks,setNotionLinks]=useState({});
   const [notionUsers,setNotionUsers]=useState({});
-  const [pushing,setPushing]=useState({});
+  const [pushStatus,setPushStatus]=useState({}); // {url: {ok, error, date}}
   const [pushed,setPushed]=useState({});
   const [pushErr,setPushErr]=useState({});
   const [view,setView]=useState("dashboard");
@@ -125,13 +125,15 @@ function App(){
         setPageSpeed(ps);
       }
       if(data.settings){
-        const links={},users={};
+        const links={},users={},statuses={};
         Object.entries(data.settings).forEach(([u,s])=>{
           if(s.notionLink)links[u]=s.notionLink;
           if(s.notionUser)users[u]=s.notionUser;
+          if(s.pushStatus)statuses[u]=s.pushStatus;
         });
         setNotionLinks(links);
         setNotionUsers(users);
+        setPushStatus(statuses);
       }
     }).catch(e=>setDbErr(e.message)).finally(()=>setLoading(false));
   },[]);
@@ -218,6 +220,11 @@ function App(){
     setScanningAll(false);
   },[sites,runScan]);
 
+  const savePushStatus=(url,status)=>{
+    setPushStatus(s=>({...s,[url]:status}));
+    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,pushStatus:status})}).catch(()=>{});
+  };
+
   const doPush=async(url)=>{
     const scan=scans[url];
     const link=notionLinks[url];
@@ -242,8 +249,10 @@ function App(){
       });
       if(!res.ok)throw new Error("HTTP "+res.status);
       setPushed(s=>({...s,[url]:true}));
+      savePushStatus(url,{ok:true,date:new Date().toISOString(),error:null});
     }catch(e){
       setPushErr(s=>({...s,[url]:e.message}));
+      savePushStatus(url,{ok:false,date:new Date().toISOString(),error:e.message});
     }
     setPushing(s=>({...s,[url]:false}));
   };
@@ -372,7 +381,12 @@ function App(){
                         <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0,opacity:pushing[url]?0.7:1}}>
                           {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Notion"}
                         </button>
-                        {notionLinks[url]&&<span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ Auto</span>}
+                        {notionLinks[url]&&!pushing[url]&&(()=>{
+                          const ps=pushStatus[url];
+                          if(!ps)return <span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ Auto</span>;
+                          if(ps.ok)return <span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ Pushed {new Date(ps.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>;
+                          return <span title={ps.error} style={{fontSize:11,color:"#e8291c",flexShrink:0,cursor:"help"}}>✗ Push failed — hover for details</span>;
+                        })()}
                       </div>
                     )}
 
