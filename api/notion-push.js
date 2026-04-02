@@ -1,6 +1,3 @@
-// Pushes SEO audit tasks directly to Hueston Tasks database
-// Data source ID and property names are hardcoded from confirmed schema
-
 const DATA_SOURCE_ID = "28110856-3466-810c-9e6e-000bc49d36d5";
 const TITLE_PROP     = "Task Name";
 const DATE_PROP      = "Date";
@@ -18,14 +15,20 @@ export default async function handler(req, res) {
 
   const { title, due, assigneeName, body } = req.body;
 
-  const headers = {
-    "Authorization": `Bearer ${notionKey}`,
-    "Content-Type": "application/json",
-    "Notion-Version": "2022-06-28",
-  };
+  // Try both auth formats
+  const tryAuth = async (authHeader) => {
+    const headers = {
+      "Authorization": authHeader,
+      "Content-Type": "application/json",
+      "Notion-Version": "2022-06-28",
+    };
 
-  try {
-    // Look up assignee by name if provided
+    // First test: can we reach the API at all?
+    const testRes = await fetch("https://api.notion.com/v1/users/me", { headers });
+    const testData = await testRes.json();
+    if (!testRes.ok) return { ok: false, status: testRes.status, error: testData.message || testData.code, auth: authHeader.split(" ")[0] };
+
+    // Look up assignee
     let assigneeId = null;
     if (assigneeName) {
       const usersRes = await fetch("https://api.notion.com/v1/users", { headers });
@@ -44,48 +47,34 @@ export default async function handler(req, res) {
       [TITLE_PROP]: { title: [{ text: { content: title } }] },
       [DATE_PROP]:  { date: { start: due } },
     };
-    if (assigneeId) {
-      properties[ASSIGNEE_PROP] = { people: [{ id: assigneeId }] };
-    }
+    if (assigneeId) properties[ASSIGNEE_PROP] = { people: [{ id: assigneeId }] };
 
-    // Convert markdown to Notion blocks
+    // Convert body to blocks
     const blocks = (body || "").split("\n").filter(l => l.trim()).map(line => {
-      if (line.startsWith("## ")) return {
-        object: "block", type: "heading_2",
-        heading_2: { rich_text: [{ type: "text", text: { content: line.replace(/^## /, "") } }] }
-      };
-      if (line.startsWith("- [ ] ")) return {
-        object: "block", type: "to_do",
-        to_do: { rich_text: [{ type: "text", text: { content: line.replace(/^- \[ \] /, "") } }], checked: false }
-      };
-      if (line.startsWith("- ")) return {
-        object: "block", type: "bulleted_list_item",
-        bulleted_list_item: { rich_text: [{ type: "text", text: { content: line.replace(/^- /, "") } }] }
-      };
-      return {
-        object: "block", type: "paragraph",
-        paragraph: { rich_text: [{ type: "text", text: { content: line } }] }
-      };
+      if (line.startsWith("## ")) return { object:"block", type:"heading_2", heading_2:{ rich_text:[{ type:"text", text:{ content:line.replace(/^## /,"") } }] } };
+      if (line.startsWith("- [ ] ")) return { object:"block", type:"to_do", to_do:{ rich_text:[{ type:"text", text:{ content:line.replace(/^- \[ \] /,"") } }], checked:false } };
+      if (line.startsWith("- ")) return { object:"block", type:"bulleted_list_item", bulleted_list_item:{ rich_text:[{ type:"text", text:{ content:line.replace(/^- /,"") } }] } };
+      return { object:"block", type:"paragraph", paragraph:{ rich_text:[{ type:"text", text:{ content:line } }] } };
     });
 
-    // Create the page
     const createRes = await fetch("https://api.notion.com/v1/pages", {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        parent: { database_id: DATA_SOURCE_ID },
-        properties,
-        children: blocks,
-      }),
+      body: JSON.stringify({ parent:{ database_id: DATA_SOURCE_ID }, properties, children: blocks }),
     });
-
     const created = await createRes.json();
-    if (!createRes.ok) {
-      return res.status(createRes.status).json({ error: created.message || JSON.stringify(created) });
+    if (!createRes.ok) return { ok: false, status: createRes.status, error: created.message || created.code || JSON.stringify(created) };
+    return { ok: true, pageId: created.id, url: created.url };
+  };
+
+  try {
+    // Try Bearer first, then token format
+    let result = await tryAuth(`Bearer ${notionKey}`);
+    if (!result.ok && result.status === 401) {
+      result = await tryAuth(`token ${notionKey}`);
     }
-
-    return res.status(200).json({ ok: true, pageId: created.id, url: created.url });
-
+    if (!result.ok) return res.status(result.status || 400).json({ error: result.error, authTried: result.auth });
+    return res.status(200).json(result);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
