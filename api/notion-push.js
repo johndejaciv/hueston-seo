@@ -1,6 +1,4 @@
-// Dedicated endpoint for pushing SEO audit tasks to Notion
-// Handles: schema discovery, user lookup, and page creation in sequence
-
+// Calls Notion REST API directly — no MCP needed
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -8,89 +6,57 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { notionUrl, title, due, assigneeName, body } = req.body;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
+  const notionKey = process.env.NOTION_API_KEY;
+  if (!notionKey) return res.status(500).json({ error: "NOTION_API_KEY not set" });
 
-  const callClaude = async (messages, withNotion = true) => {
-    const payload = {
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages,
-    };
-    if (withNotion) {
-      payload.mcp_servers = [{ type: "url", url: "https://mcp.notion.com/mcp", name: "notion" }];
-    }
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-beta": "mcp-client-2025-04-04" },
-      body: JSON.stringify(payload),
-    });
-    const data = await r.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.content || [];
-  };
+  const { dataSourceId, titleProp, dateProp, assigneeProp, assigneeId, title, due, body } = req.body;
 
   try {
-    // Step 1: Fetch the schema to get data_source_id and property names
-    const schemaBlocks = await callClaude([{
-      role: "user",
-      content: `Use notion-fetch on this URL: ${notionUrl}
-      
-If it's a PAGE, look for an inline database in its content and fetch that database too.
-If it's a DATABASE, fetch it directly.
-
-Return ONLY a JSON object with no markdown:
-{
-  "data_source_id": "<the collection:// ID without the collection:// prefix>",
-  "title_prop": "<exact name of the title property>",
-  "date_prop": "<exact name of the date property, type=date>",
-  "assignee_prop": "<exact name of the people/person property, or null if none>"
-}`
-    }]);
-    const schemaText = schemaBlocks.filter(b => b.type === "text").map(b => b.text).join("");
-    const schemaMatch = schemaText.match(/\{[\s\S]*\}/);
-    if (!schemaMatch) throw new Error("Could not read Notion schema");
-    const schema = JSON.parse(schemaMatch[0]);
-
-    // Step 2: Look up user ID if assignee name provided
-    let assigneeId = null;
-    if (assigneeName && schema.assignee_prop) {
-      const userBlocks = await callClaude([{
-        role: "user",
-        content: `Use notion-search with query_type "user" to find a workspace member named "${assigneeName}". Return ONLY a JSON object: {"user_id": "<id without user:// prefix, just the UUID>"}`
-      }]);
-      const userText = userBlocks.filter(b => b.type === "text").map(b => b.text).join("");
-      const userMatch = userText.match(/\{[\s\S]*\}/);
-      if (userMatch) {
-        const userData = JSON.parse(userMatch[0]);
-        assigneeId = userData.user_id;
-      }
-    }
-
-    // Step 3: Create the page with exact property names
+    // Build properties object
     const properties = {
-      [schema.title_prop]: title,
-      [`date:${schema.date_prop}:start`]: due,
-      [`date:${schema.date_prop}:is_datetime`]: 0,
+      [titleProp]: { title: [{ text: { content: title } }] },
     };
-    if (assigneeId && schema.assignee_prop) {
-      properties[schema.assignee_prop] = `user://${assigneeId}`;
+
+    if (dateProp) {
+      properties[dateProp] = { date: { start: due } };
     }
 
-    const createBlocks = await callClaude([{
-      role: "user",
-      content: `Use notion-create-pages to create a page with:
-- parent: data_source_id "${schema.data_source_id}"
-- properties: ${JSON.stringify(properties)}
-- content: the markdown below
+    if (assigneeProp && assigneeId) {
+      properties[assigneeProp] = { people: [{ id: assigneeId }] };
+    }
 
-${body}
+    // Convert markdown body to Notion blocks (simple paragraph blocks)
+    const lines = body.split("\n").filter(l => l.trim());
+    const blocks = lines.map(line => {
+      if (line.startsWith("## ")) {
+        return { object: "block", type: "heading_2", heading_2: { rich_text: [{ type: "text", text: { content: line.replace("## ", "") } }] } };
+      }
+      if (line.startsWith("- [ ] ")) {
+        return { object: "block", type: "to_do", to_do: { rich_text: [{ type: "text", text: { content: line.replace("- [ ] ", "") } }], checked: false } };
+      }
+      if (line.startsWith("- ")) {
+        return { object: "block", type: "bulleted_list_item", bulleted_list_item: { rich_text: [{ type: "text", text: { content: line.replace("- ", "") } }] } };
+      }
+      return { object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: line } }] } };
+    });
 
-Return "done" when complete.`
-    }]);
+    const response = await fetch("https://api.notion.com/v1/pages", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${notionKey}`,
+        "Content-Type": "application/json",
+        "Notion-Version": "2022-06-28",
+      },
+      body: JSON.stringify({
+        parent: { database_id: dataSourceId },
+        properties,
+        children: blocks,
+      }),
+    });
 
-    return res.status(200).json({ ok: true, schema, assigneeId });
+    const data = await response.json();
+    if (!response.ok) return res.status(response.status).json({ error: data.message || JSON.stringify(data) });
+    return res.status(200).json({ ok: true, pageId: data.id, url: data.url });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
