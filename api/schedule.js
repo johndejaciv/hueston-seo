@@ -59,19 +59,43 @@ export default async function handler(req, res) {
         // Auto-push to Notion if configured
         const siteSettings = settings[url] || {};
         if (siteSettings.notionLink) {
-          const dbId = extractDbId(siteSettings.notionLink);
-          const due = getEndOfMonth();
-          const mention = siteSettings.notionUser ? " Find the Notion workspace member named '" + siteSettings.notionUser + "' and assign them to this page." : "";
+          const title = new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"}) + " SEO Audit — " + url;
+          const crit2 = result.issues.filter(i=>i.priority==="critical");
+          const med2 = result.issues.filter(i=>i.priority==="medium");
+          const body = [
+            "## Summary", result.summary||"", "",
+            "SEO Score: "+result.score+"/100", "",
+            "## Critical Issues ("+crit2.length+")",
+            ...crit2.map(i=>"- [ ] **"+i.label+"** — "+i.fix), "",
+            "## Medium Issues ("+med2.length+")",
+            ...med2.map(i=>"- [ ] **"+i.label+"** — "+i.fix), "",
+            "## Next Steps",
+            "- [ ] Review critical issues and assign to dev/content team",
+            "- [ ] Schedule fixes before end of month",
+            "- [ ] Re-scan after fixes to verify improvements",
+          ].join("\n");
           await fetch(base + "/api/scan", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               model: "claude-sonnet-4-20250514",
-              max_tokens: 1000,
+              max_tokens: 1500,
               mcp_servers: [{ type: "url", url: "https://mcp.notion.com/mcp", name: "notion" }],
               messages: [{
                 role: "user",
-                content: "Create a new page in Notion database ID: " + dbId + ". Set the due date property to " + due + "." + mention + " " + buildNotionPrompt(url, result) + " Use the create-pages tool now."
+                content: `You are creating a Notion page. Follow these steps:
+
+1. First use notion-fetch to get the schema for database ID: ${dbId}
+2. Identify the title property, any date property, and any people/assignee property
+3. Create a page with:
+   - Title: ${title}
+   - Date property (whatever it's called): ${due}
+   ${siteSettings.notionUser ? `- People property (whatever it's called): find member named "${siteSettings.notionUser}" and assign them` : ""}
+   - Body as paragraph blocks:
+
+${body}
+
+Only set properties that exist in the schema.`
               }],
             }),
           });
