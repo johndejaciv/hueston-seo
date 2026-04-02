@@ -75,18 +75,6 @@ function auditPrompt(url){
   return "SEO audit of "+url+". Search for: site:"+url+" and "+url+" sitemap robots pagespeed. Return ONLY JSON: {\"url\":\""+url+"\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<id>\",\"label\":\"<label>\",\"priority\":\"critical or medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}";
 }
 
-function notionPrompt(url,scan){
-  const crit=scan.issues.filter(i=>i.priority==="critical");
-  const med=scan.issues.filter(i=>i.priority==="medium");
-  const due=getEndOfMonth();
-  return "Create a Notion SEO task. Respond ONLY with valid JSON: {\"title\":\"<site+month/year SEO Audit>\",\"priority\":\"High|Medium|Low\",\"due_date\":\""+due+"\",\"body\":\"<markdown ## Critical Issues ## Medium Issues ## Next Steps with - [ ] checkboxes>\"}. Site="+url+" Score="+scan.score+"/100 Critical("+crit.length+")="+crit.map(i=>i.label+": "+i.fix).join("; ")+" Medium("+med.length+")="+med.map(i=>i.label+": "+i.fix).join("; ");
-}
-
-function extractDbId(input){
-  const m=input.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-  return m?m[1]:input.trim();
-}
-
 function Spin(){
   return <span style={{width:13,height:13,border:"2px solid rgba(255,255,255,0.2)",borderTop:"2px solid #fff",borderRadius:"50%",display:"inline-block",animation:"spin .7s linear infinite",flexShrink:0}}/>;
 }
@@ -100,12 +88,10 @@ function App(){
   const [scanningAll,setScanningAll]=useState(false);
   const [logs,setLogs]=useState({});
   const [scanErrors,setScanErrors]=useState({});
-  const [notionLinks,setNotionLinks]=useState({});
-  const [notionUsers,setNotionUsers]=useState({});
   const [pushStatus,setPushStatus]=useState({});
   const [pushing,setPushing]=useState({});
-  const [pushErr,setPushErr]=useState({});
   const [pushed,setPushed]=useState({});
+  const [pushErr,setPushErr]=useState({});
   const [view,setView]=useState("dashboard");
   const [active,setActive]=useState(null);
   const [tab,setTab]=useState("all");
@@ -113,7 +99,6 @@ function App(){
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
 
-  // Restore last view from localStorage after data loads
   useEffect(()=>{
     fetch("/api/sites").then(r=>r.json()).then(data=>{
       if(data.error)setDbErr(data.error);
@@ -121,47 +106,32 @@ function App(){
       if(data.scans){
         setScans(data.scans);
         const ps={};
-        Object.entries(data.scans).forEach(([url,scan])=>{
-          if(scan.pageSpeed)ps[url]=scan.pageSpeed;
-        });
+        Object.entries(data.scans).forEach(([url,scan])=>{ if(scan.pageSpeed)ps[url]=scan.pageSpeed; });
         setPageSpeed(ps);
       }
       if(data.settings){
-        const links={},users={},statuses={};
-        Object.entries(data.settings).forEach(([u,s])=>{
-          if(s.notionLink)links[u]=s.notionLink;
-          if(s.notionUser)users[u]=s.notionUser;
-          if(s.pushStatus)statuses[u]=s.pushStatus;
-        });
-        setNotionLinks(links);
-        setNotionUsers(users);
+        const statuses={};
+        Object.entries(data.settings).forEach(([u,s])=>{ if(s.pushStatus)statuses[u]=s.pushStatus; });
         setPushStatus(statuses);
       }
-      // Restore nav state after data is loaded
-      const savedView=ls.get("hv");
-      const savedActive=ls.get("ha");
-      const savedTab=ls.get("ht");
-      if(savedView)setView(savedView);
-      if(savedActive)setActive(savedActive);
-      if(savedTab)setTab(savedTab);
+      const sv=ls.get("hv"), sa=ls.get("ha"), st=ls.get("ht");
+      if(sv)setView(sv);
+      if(sa)setActive(sa);
+      if(st)setTab(st);
     }).catch(e=>setDbErr(e.message)).finally(()=>setLoading(false));
   },[]);
 
   const log=(url,msg)=>setLogs(s=>({...s,[url]:msg}));
 
   const goTo=(v,a=null,t="all")=>{
-    setView(v); ls.set("hv",v);
-    setActive(a); if(a)ls.set("ha",a); else ls.set("ha","");
-    setTab(t); ls.set("ht",t);
+    setView(v);ls.set("hv",v);
+    setActive(a);ls.set("ha",a||"");
+    setTab(t);ls.set("ht",t);
     setExpanded(null);
   };
 
-  const saveSettings=(url,link,user,ps)=>{
-    const body={action:"save_settings",url};
-    if(link!==undefined)body.notionLink=link;
-    if(user!==undefined)body.notionUser=user;
-    if(ps!==undefined)body.pushStatus=ps;
-    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>{});
+  const saveSettings=(url,ps)=>{
+    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,pushStatus:ps})}).catch(()=>{});
   };
 
   const addSite=async()=>{
@@ -204,10 +174,9 @@ function App(){
           if(!r.ok)throw new Error("HTTP "+r.status+": "+raw.slice(0,200));
           const data=JSON.parse(raw);
           if(data.error)throw new Error(JSON.stringify(data.error));
-          if(data.stop_reason==="max_tokens")throw new Error("Response cut off.");
           const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
           const match=text.match(/\{[\s\S]*\}/);
-          if(!match)throw new Error("No JSON found. Got: "+text.slice(0,150));
+          if(!match)throw new Error("No JSON found.");
           return JSON.parse(match[0]);
         }),
         fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile").then(r=>r.json()).catch(()=>null),
@@ -235,45 +204,54 @@ function App(){
 
   const runAll=useCallback(async()=>{
     setScanningAll(true);
-    for(const url of sites){
-      await runScan(url);
-      if(sites.indexOf(url)<sites.length-1)await sleep(5000);
+    for(let i=0;i<sites.length;i++){
+      await runScan(sites[i]);
+      if(i<sites.length-1)await sleep(8000);
     }
     setScanningAll(false);
   },[sites,runScan]);
 
   const doPush=async(url)=>{
     const scan=scans[url];
-    const link=notionLinks[url];
     if(!scan)return;
-    if(!link||!link.trim()){alert("Paste a Notion Database URL first.");return;}
-    const dbId=extractDbId(link);
     const due=getEndOfMonth();
-            const userMention=notionUsers[url]?" Find the Notion workspace member named '"+notionUsers[url]+"' and assign them to this page.":"";
+    const crit=scan.issues.filter(i=>i.priority==="critical");
+    const med=scan.issues.filter(i=>i.priority==="medium");
+    const title=new Date().toLocaleDateString("en-US",{month:"long",year:"numeric"})+" SEO Audit — "+url;
+    const body=[
+      "## Summary",scan.summary||"","",
+      "SEO Score: "+scan.score+"/100",
+      "Scanned: "+new Date(scan.date).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}),"",
+      "## Critical Issues ("+crit.length+")",
+      ...crit.map(i=>"- [ ] "+i.label+" — "+i.fix),"",
+      "## Medium Issues ("+med.length+")",
+      ...med.map(i=>"- [ ] "+i.label+" — "+i.fix),"",
+      "## Next Steps",
+      "- [ ] Review critical issues and assign to dev/content team",
+      "- [ ] Schedule fixes before end of month",
+      "- [ ] Re-scan after fixes to verify improvements",
+    ].join("\n");
+
     setPushing(s=>({...s,[url]:true}));
     setPushErr(s=>({...s,[url]:null}));
     setPushed(s=>({...s,[url]:false}));
     try{
-      const res=await fetch("/api/scan",{
+      const res=await fetch("/api/notion-push",{
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
-          mcp_servers:[{type:"url",url:"https://mcp.notion.com/mcp",name:"notion"}],
-          messages:[{role:"user",content:"Create a new page in Notion database ID: "+dbId+". Set the due date to "+due+"."+userMention+" "+notionPrompt(url,scan)+" Use the create-pages tool now."}],
-        }),
+        body:JSON.stringify({title,due,body,siteUrl:url}),
       });
-      if(!res.ok)throw new Error("HTTP "+res.status);
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.error||"Push failed");
       const ps={ok:true,date:new Date().toISOString(),error:null};
       setPushed(s=>({...s,[url]:true}));
       setPushStatus(s=>({...s,[url]:ps}));
-      saveSettings(url,undefined,undefined,ps);
+      saveSettings(url,ps);
     }catch(e){
       const ps={ok:false,date:new Date().toISOString(),error:e.message};
       setPushErr(s=>({...s,[url]:e.message}));
       setPushStatus(s=>({...s,[url]:ps}));
-      saveSettings(url,undefined,undefined,ps);
+      saveSettings(url,ps);
     }
     setPushing(s=>({...s,[url]:false}));
   };
@@ -376,18 +354,15 @@ function App(){
                     </div>
 
                     {s&&!isScanning&&(
-                      <div style={{borderTop:"1px solid #22304a",background:"#0c1520",padding:"10px 20px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                        <span style={{fontSize:11,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion:</span>
-                        <input value={notionLinks[url]||""} onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}} placeholder="DB URL or ID" style={{flex:2,minWidth:120,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}/>
-                        <input value={notionUsers[url]||""} onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}} placeholder="Assignee name (optional)" style={{flex:2,minWidth:100,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}/>
-                        <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0,opacity:pushing[url]?0.7:1}}>
-                          {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Notion"}
+                      <div style={{borderTop:"1px solid #22304a",background:"#0c1520",padding:"10px 20px",display:"flex",alignItems:"center",gap:12}}>
+                        <span style={{fontSize:11,color:B.gray,flexShrink:0}}>→ Hueston Tasks</span>
+                        <div style={{flex:1,fontSize:11,color:"#4a5f78",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>notion.so/hueston/28110856346681939b49d58f93578143</div>
+                        <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0,opacity:pushing[url]?0.7:1}}>
+                          {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Push to Notion"}
                         </button>
-                        {notionLinks[url]&&!pushing[url]&&(()=>{
-                          if(!ps)return <span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ Auto</span>;
-                          if(ps.ok)return <span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ {new Date(ps.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>;
-                          return <span title={ps.error} style={{fontSize:11,color:"#e8291c",flexShrink:0,cursor:"help"}}>✗ Push failed</span>;
-                        })()}
+                        {ps&&<span style={{fontSize:11,color:ps.ok?"#22c55e":"#e8291c",flexShrink:0,cursor:ps.ok?"default":"help"}} title={ps.ok?"":ps.error}>
+                          {ps.ok?"✓ "+new Date(ps.date).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"✗ Failed"}
+                        </span>}
                       </div>
                     )}
                     {scanErrors[url]&&<div style={{borderTop:"1px solid rgba(245,158,11,.2)",padding:"10px 20px",background:"rgba(245,158,11,.06)",fontSize:12,color:"#f59e0b"}}><strong>⚠ Live scan failed — showing demo data.</strong> Error: {scanErrors[url]}</div>}
@@ -401,7 +376,7 @@ function App(){
               <span style={{fontSize:18}}>📅</span>
               <div>
                 <div style={{fontSize:13,fontWeight:600,color:"#e8291c",marginBottom:2}}>Monthly Auto-Scan Scheduled</div>
-                <div style={{fontSize:12,color:B.gray}}>All sites scan on the 1st of each month. Tasks auto-push to Notion with end-of-month due dates.</div>
+                <div style={{fontSize:12,color:B.gray}}>All sites scan on the 1st of each month and push automatically to Hueston Tasks.</div>
               </div>
             </div>
           </div>
@@ -469,12 +444,12 @@ function App(){
               );
             })()}
 
-            <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
-              <input value={notionLinks[active]||""} onChange={e=>setNotionLinks(s=>({...s,[active]:e.target.value}))} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"7px 12px",color:"#fff",fontSize:13,outline:"none"}}/>
+            <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:12,color:B.gray,flexShrink:0}}>→ Hueston Tasks</span>
               <button onClick={()=>doPush(active)} disabled={pushing[active]} style={{background:pushed[active]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
                 {pushing[active]?<><Spin/> Pushing...</>:pushed[active]?"✓ Sent":"→ Push to Notion"}
               </button>
+              {pushStatus[active]&&<span style={{fontSize:11,color:pushStatus[active].ok?"#22c55e":"#e8291c"}}>{pushStatus[active].ok?"✓ Last pushed "+new Date(pushStatus[active].date).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"✗ Last push failed"}</span>}
             </div>
 
             <div style={{display:"flex",gap:4,marginBottom:20,background:"#1a2332",borderRadius:8,padding:4,width:"fit-content",border:"1px solid #22304a"}}>
