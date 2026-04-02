@@ -19,33 +19,37 @@ input::placeholder{color:#4a5f78}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useCallback, useEffect, useRef } = React;
+const { useState, useCallback, useEffect } = React;
 const B = { navy:"#0f1623", mid:"#1a2332", light:"#22304a", red:"#e8291c", gray:"#8b99ad" };
 const card = { background:"#1a2332", border:"1px solid #22304a", borderRadius:10, overflow:"hidden" };
 const scoreCol = n => n >= 90 ? "#22c55e" : n >= 50 ? "#f59e0b" : "#e8291c";
 const metricCol = n => (n === null || n === undefined) ? "#8b99ad" : n >= 0.9 ? "#22c55e" : n >= 0.5 ? "#f59e0b" : "#e8291c";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+const LOGO = "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIGlkPSJ1dWlkLWU5N2NmNWIzLTgwNjAtNGI5MS1hMjA1LTE5YTA0ZjdlYjA1YSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODg2LjcgMTc5LjkiPjxkZWZzPjxzdHlsZT4udXVpZC1lMTEzNzcwOC04MTc0LTQ1OTgtOWQ5Mi0xMmViZjNkMWJmZWR7ZmlsbDojZjVmNWYyO30udXVpZC1hMzgxNTlkZC1mNWYyLTQ4YWEtODQxNy1jM2YxYjUzN2ZkMTl7ZmlsbDojZGU0OTJmO308L3N0eWxlPjwvZGVmcz48ZyBpZD0idXVpZC1lYmQ4YzY5MS1kNDJhLTQwZTEtODNjZC1mODkzZjNmZmYxZmEiPjxwYXRoIGNsYXNzPSJ1dWlkLWUxMTM3NzA4LTgxNzQtNDU5OC05ZDkyLTEyZWJmM2QxYmZlZCIgZD0iTTgyMiwxMzcuOWMtMy45LDMtOC41LDUuMi0xMy42LDUuMnMtNS40LS43LTcuMS0yLjFjLS40LS4zLS43LS42LTEtMSwwLDAsMCwwLDAtLjEtLjEtLjItLjItLjQtLjMtLjYtLjktMS4zLTEuNS0yLjktMS42LTQuOS0uMS0yLjMuMy01LDEuNC04LjJsNC42LTEzLjhjMy40LTEwLjYsNS0xNyw1LTI0LjYsMC0xNS42LTktMjguNS0yOS44LTI4LjQtMS44LDAtMy41LjEtNS4yLjMtLjcsMC0xLjQuMy0yLjEuNC0uOS4yLTEuNy4zLTIuNS41LTkuMiwyLjItMTYuNyw3LjYtMjIuNywxNC42bDIuMy0xMi4zaC0yNi44czAsLjIsMCwuMmgwbC0yLjYsOC40Yy01LjgsNy44LTE0LjUsMTMuNS0yNCwxNS42LTQuNSwxLTkuMiwxLjItMTMuOC42LTcuMy0xNi44LTIyLjgtMjcuOC00Mi41LTI3LjctMzUuMy4xLTU5LjcsMjkuOC01OS41LDYzLDAsMS4zLDAsMi42LjIsMy44LTQuMSw2LTEzLjUsMTcuMS0yNy44LDE3LjEtMTAuOCwwLTE1LjYtNS0xNS42LTEyLjUsMC02LjQsMi4yLTE0LDcuMi0yOC45bDUuNC0xNi4xLDYuOS0yMC45LDMyLjQuMyw3LTI3LjYtMzAuMi0uMkw1NzgsLjNsLTMzLjEtLjMtMTIuNywzNy43LTI5LjctLjItNy43LDI3LjQsMjguMy4zLTcuMiwyMS40LTMuMiw5LjZjLTUuMywxNS43LTguNywyNy41LTkuMywzNy4xLTYsNy0xNS42LDE1LjEtMjguNSwxNS4zLDUtOS40LDcuOS0yMC4yLDcuOS0zMS0uMS0yNy4zLTE3LjYtNDUuMS00Ny4yLTUzLjRsLTctMi42LDEuMy02LjJoLTI3LjNjMCwuMS0xLjYsOC45LTEuNiw4LjktMy44LDI3LjctMTUuNiw1OS40LTM5LjIsNzQuMi0xLjYuOC0zLjIsMS41LTQuOSwyLjItNy4xLDIuNi0xNC41LDUtMjMuMyw1LTYsMC0xMS4xLS44LTE1LjUtMi40bDE5LTEwLjJjNi41LTIuNSwxMi4zLTUuNSwxNy4yLTkuMyw5LjgtNy40LDE2LTE3LjQsMTUuOS0zMC4zLDAtMTkuNy0xOC43LTMyLjUtNDMuNy0zMi4zLTM2LjkuMi01OS45LDI5LjEtNTkuOCw1OC43LDAsNi45LDEuMywxMy41LDMuNiwxOS42bC0xLjQuOGMtNiwyLjYtMTMsNC45LTE5LjMsNC45LTcuOCwwLTEyLjYtNC41LTEyLjYtMTEuOSwwLTYuOSwyLjUtMTQuMiw3LjctMjkuNmwxMi45LTM4LjhoLTMzLjJjMCwuMS0xNy4yLDU0LjMtMTcuMiw1NC4zLTUuOSwxOC42LTEzLjQsMjYuMi0yMy4zLDI2LjItOCwwLTEyLjItNS0xMi4yLTEyLjMsMC02LjksMi4yLTE0LjcsNy4yLTI5LjFsMTMuMS0zOC44aC0zMy4yYzAsLjEtMTEuMywzMy42LTExLjMsMzMuNi00LjksMTQuMS03LjksMjUuOS04LjQsMzUuNy00LjgsNS40LTExLjYsMTEuMS0xOS44LDExLjItOC4yLDAtMTIuNi01LjQtOC44LTE2LjlsNC41LTEzLjhjMy40LTEwLjYsNS0xNyw0LjktMjQuNSwwLTE1LjYtOS4xLTI4LjQtMjkuOS0yOC4zLTkuNCwwLTE3LjQsMy4xLTI0LjIsOC4xTDg4LjUuNSw1NS4yLjEsMCwxNzIuNmgzMi44YzAtLjEsMTguMy01Ni44LDE4LjMtNTYuOCw1LjctMTcuOSwxMy40LTI0LjYsMjIuMy0yNC42LDcuMSwwLDExLjIsNC4zLDExLjMsMTAuOSwwLDUuNy0xLjMsMTAuNS00LjUsMjEuMWwtMy4yLDkuOWMtNy41LDIzLjksNS40LDQyLjYsMzAsNDIuNSwxNi42LDAsMjkuNi02LjcsMzkuMS0xNC4zLDYuNCw4LjksMTcsMTQuMSwzMC41LDE0LDE1LjEsMCwyNi44LTcuOSwzNC44LTE2LjIsNS4zLDEwLjMsMTUuMiwxNiwyOS40LDE1LjksMTEuOSwwLDIyLjctMy4yLDMxLjctNy4yaDBzLjYtLjMuNi0uM2M0LjEtMS45LDcuOC0zLjksMTEuMS02bDEuOS0xYzExLDguOCwyNi42LDE0LjEsNDYuNiwxNCw2LDAsMTEuMy0xLjEsMTYuNy0yLjEsNy40LTEuNSwxNC4zLTMuOCwyMC43LTYuOCwwLDAsLjIsMCwuMi0uMS40LS4yLjgtLjMsMS4xLS41LDAsMCwwLDAsMC0uMSwyOS4yLTE2LDQ2LjItNDcuNCw1My40LTczLDE3LjQsNSwyNi42LDEzLjYsMjYuNywzMS41LDAsOC41LTEuOCwxNS42LTQuNSwyMC45LTQuMS0uNy04LjMtMS4zLTEzLjgtMS4zLTE1LjEsMC0yNS4yLDYuNy0yNS4xLDE5LjEsMCwxMC44LDkuMiwxNy44LDIyLjgsMTcuOCw4LjIsMCwxNi4zLTMsMjMuNi03LjksNC40LDEuMSw5LjQsMiwxNi4zLDIsMTYuOSwwLDMwLjEtNi44LDM5LjYtMTQuMyw2LjcsOSwxNy45LDE0LjEsMzMsMTQsMjAuNiwwLDM1LjgtMTAuNyw0NS40LTIwLjMsOC4zLDEyLjMsMjEuOCwyMCwzOC4yLDE5LjksMjMuMywwLDQzLjEtMTQuNSw1Mi45LTM1LjMsMy4zLTcuMSw1LjUtMTQuOCw2LjItMjIuNi40LDAsLjcsMCwxLjEsMCw1LjEsMCwxMC4xLS45LDE0LjktMi41LDEuOC0uNiwzLjUtMS40LDUuMi0yLjJsLTMuNCwxMC45LTkuMywyOS4zLTUuOCwxOC41aC40di4yYzAsMCwzMi43LS4xLDMyLjctLjFsMTguMy01Ni43Yy45LTIuNywxLjgtNS4yLDIuNy03LjQsMy40LTcuOCw3LjMtMTIuNiwxMS43LTE1LjEsMi41LTEuNCw1LjItMi4xLDcuOS0yLjEsNy4xLDAsMTEuMiw0LjMsMTEuMywxMC45LDAsNS43LTEuMywxMC41LTQuNSwyMS4xbC0yLjksOS0uMy45Yy03LjYsMjMuOSw1LjMsNDIuNywyOS44LDQyLjcsMTYuOCwwLDMwLTYuOCwzOS42LTE0LjUtNC43LTYuNy05LjItMTMuNS0xMy40LTIwLjVoMFpNMjk5LjIsMTIxLjRjLS41LTIuMy0uNy00LjYtLjctNy4xLDAtMTUuMSwxMS4zLTI4LjIsMjYuMi0yOC4zLDEwLjEsMCwxNy4zLDQuNCwxNy4zLDEwLjgsMCwuMywwLC42LS4xLjktLjUsMi4zLTIsNC4yLTQsNS40bC0zNy4yLDIxLjljLS4zLS41LTEuNC0zLTEuNi0zLjdoMFpNNjU2LjksMTIwLjRjLS42LDIuNi0xLjMsNS4yLTIuMiw3LjQtNS4xLDEzLjMtMjMsMjEuMi0zNSwxMS41LTUuNi00LjUtOC0xMS42LTguMi0xOC41LDAtLjMsMC0uNywwLTEsMC0xNS4xLDEwLjQtMzAuMSwyNS44LTMwLjMsNS45LDAsMTEuOCwxLjgsMTUuNyw2LjQsNS41LDYuNCw1LjgsMTYuMSw0LDI0LjVoMFoiLz48cGF0aCBjbGFzcz0idXVpZC1hMzgxNTlkZC1mNWYyLTQ4YWEtODQxNy1jM2YxYjUzN2ZkMTkiIGQ9Ik04ODYuMiwxMjFsLTExLTZjLTMtMS42LTUuNC00LjEtNy4xLTcuMWwtNi0xMWMtLjMtLjYtMS4zLS42LTEuNiwwbC01LjksMTAuOGMtMS43LDMuMS00LjIsNS42LTcuMyw3LjNsLTEwLjgsNS45Yy0uNi4zLS42LDEuMywwLDEuNmwxMSw2YzMsMS42LDUuNCw0LjEsNyw3bDYsMTFjLjMuNiwxLjMuNiwxLjYsMGw2LTExYzEuNi0zLDQuMS01LjQsNy03bDExLTZjLjYtLjMuNi0xLjMsMC0xLjZoMFoiLz48L2c+PC9zdmc+";
+
 const POOL = [
-  { id:"missing_title",     label:"Missing or empty title tag",           priority:"critical", category:"On-Page",         fix:"Add a unique descriptive title tag (50-60 chars) with the primary keyword near the front." },
-  { id:"dup_title",         label:"Duplicate title tags",                 priority:"critical", category:"On-Page",         fix:"Each page needs a unique title. Audit CMS templates so dynamic titles are generated per-page." },
-  { id:"missing_h1",        label:"Missing H1 tag",                       priority:"critical", category:"On-Page",         fix:"Add exactly one H1 per page that clearly describes the topic with the primary keyword." },
-  { id:"dup_h1",            label:"Multiple H1 tags on same page",        priority:"medium",   category:"On-Page",         fix:"Reduce to a single H1. Move additional headings to H2 or H3." },
-  { id:"missing_meta",      label:"Missing meta descriptions",            priority:"medium",   category:"On-Page",         fix:"Write unique meta descriptions (150-160 chars) for each page." },
-  { id:"broken_links",      label:"Broken internal links (4xx)",          priority:"critical", category:"Technical",       fix:"Redirect all broken URLs to the most relevant live page using 301 redirects." },
-  { id:"redirect_chains",   label:"Redirect chains (3xx)",                priority:"medium",   category:"Technical",       fix:"Reduce chains to a single 301. Update source links to point to the final URL." },
-  { id:"missing_canonical", label:"Missing canonical tags",               priority:"medium",   category:"Technical",       fix:"Add a canonical tag to each page pointing to the preferred URL." },
-  { id:"noindex",           label:"Important pages blocked by noindex",   priority:"critical", category:"Indexability",    fix:"Review noindex tags — ensure pages meant to rank do not have this set." },
-  { id:"missing_sitemap",   label:"Missing XML sitemap",                  priority:"critical", category:"Technical",       fix:"Create an XML sitemap and submit it via Google Search Console." },
-  { id:"missing_alt",       label:"Images missing alt text",              priority:"medium",   category:"Accessibility",   fix:"Add descriptive alt text to all images." },
-  { id:"slow_pages",        label:"Slow loading pages (over 3s)",         priority:"critical", category:"Performance",     fix:"Compress images, enable caching, use a CDN, and minimize render-blocking JS/CSS." },
-  { id:"large_images",      label:"Oversized images (over 500KB)",        priority:"medium",   category:"Performance",     fix:"Compress images to under 200KB. Use WebP format." },
-  { id:"no_schema",         label:"Missing structured data / schema",     priority:"medium",   category:"Structured Data", fix:"Implement JSON-LD schema (Organization, LocalBusiness, FAQ)." },
-  { id:"thin_content",      label:"Thin content pages (under 300 words)", priority:"medium",   category:"Content",         fix:"Expand thin pages with helpful content that addresses user intent." },
-  { id:"missing_og",        label:"Missing Open Graph tags",              priority:"medium",   category:"On-Page",         fix:"Add og:title, og:description, and og:image tags." },
+  {id:"missing_title",label:"Missing or empty title tag",priority:"critical",category:"On-Page",fix:"Add a unique descriptive title tag (50-60 chars) with the primary keyword near the front."},
+  {id:"dup_title",label:"Duplicate title tags",priority:"critical",category:"On-Page",fix:"Each page needs a unique title. Audit CMS templates so dynamic titles are generated per-page."},
+  {id:"missing_h1",label:"Missing H1 tag",priority:"critical",category:"On-Page",fix:"Add exactly one H1 per page that clearly describes the topic with the primary keyword."},
+  {id:"dup_h1",label:"Multiple H1 tags on same page",priority:"medium",category:"On-Page",fix:"Reduce to a single H1. Move additional headings to H2 or H3."},
+  {id:"missing_meta",label:"Missing meta descriptions",priority:"medium",category:"On-Page",fix:"Write unique meta descriptions (150-160 chars) for each page."},
+  {id:"broken_links",label:"Broken internal links (4xx)",priority:"critical",category:"Technical",fix:"Redirect all broken URLs to the most relevant live page using 301 redirects."},
+  {id:"redirect_chains",label:"Redirect chains (3xx)",priority:"medium",category:"Technical",fix:"Reduce chains to a single 301. Update source links to point to the final URL."},
+  {id:"missing_canonical",label:"Missing canonical tags",priority:"medium",category:"Technical",fix:"Add a canonical tag to each page pointing to the preferred URL."},
+  {id:"noindex",label:"Important pages blocked by noindex",priority:"critical",category:"Indexability",fix:"Review noindex tags — ensure pages meant to rank do not have this set."},
+  {id:"missing_sitemap",label:"Missing XML sitemap",priority:"critical",category:"Technical",fix:"Create an XML sitemap and submit it via Google Search Console."},
+  {id:"missing_alt",label:"Images missing alt text",priority:"medium",category:"Accessibility",fix:"Add descriptive alt text to all images."},
+  {id:"slow_pages",label:"Slow loading pages (over 3s)",priority:"critical",category:"Performance",fix:"Compress images, enable caching, use a CDN, and minimize render-blocking JS/CSS."},
+  {id:"large_images",label:"Oversized images (over 500KB)",priority:"medium",category:"Performance",fix:"Compress images to under 200KB. Use WebP format."},
+  {id:"no_schema",label:"Missing structured data / schema",priority:"medium",category:"Structured Data",fix:"Implement JSON-LD schema (Organization, LocalBusiness, FAQ)."},
+  {id:"thin_content",label:"Thin content pages (under 300 words)",priority:"medium",category:"Content",fix:"Expand thin pages with helpful content that addresses user intent."},
+  {id:"missing_og",label:"Missing Open Graph tags",priority:"medium",category:"On-Page",fix:"Add og:title, og:description, and og:image tags."},
 ];
-const PATHS = ["/","/about","/services","/blog","/contact","/pricing","/faq","/team","/work","/resources"];
+
+const PATHS=["/","/about","/services","/blog","/contact","/pricing","/faq","/team","/work","/resources"];
 function rand(seed,n){return Math.abs(Math.sin(seed*9301+n*49297)*233280)%1}
+
 function demoScan(url){
   const seed=url.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
   const issues=[];
@@ -60,26 +64,31 @@ function demoScan(url){
   const score=Math.max(10,Math.min(95,100-crit*12-(issues.length-crit)*4));
   return{url,score,summary:"Demo data — live scan failed. Check error below.",issues,passed,date:new Date().toISOString(),live:false};
 }
+
+function getEndOfMonth(){
+  const now=new Date();
+  return new Date(now.getFullYear(),now.getMonth()+1,0).toISOString().split("T")[0];
+}
+
 function auditPrompt(url){
   return "SEO audit of "+url+". Search for: site:"+url+" and "+url+" sitemap robots pagespeed. Return ONLY JSON: {\"url\":\""+url+"\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<id>\",\"label\":\"<label>\",\"priority\":\"critical or medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}";
 }
-function getEndOfMonth(){
-  const now=new Date();
-  const end=new Date(now.getFullYear(),now.getMonth()+1,0);
-  return end.toISOString().split("T")[0];
-}
+
 function notionPrompt(url,scan){
   const crit=scan.issues.filter(i=>i.priority==="critical");
   const med=scan.issues.filter(i=>i.priority==="medium");
   const due=getEndOfMonth();
   return "Create a Notion SEO task. Respond ONLY with valid JSON: {\"title\":\"<site+month/year SEO Audit>\",\"priority\":\"High|Medium|Low\",\"due_date\":\""+due+"\",\"body\":\"<markdown ## Critical Issues ## Medium Issues ## Next Steps with - [ ] checkboxes>\"}. Site="+url+" Score="+scan.score+"/100 Critical("+crit.length+")="+crit.map(i=>i.label+": "+i.fix).join("; ")+" Medium("+med.length+")="+med.map(i=>i.label+": "+i.fix).join("; ");
 }
+
 function extractDbId(input){
   const m=input.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
   return m?m[1]:input.trim();
 }
-function Spin(){return <span style={{width:13,height:13,border:"2px solid rgba(255,255,255,0.2)",borderTop:"2px solid #fff",borderRadius:"50%",display:"inline-block",animation:"spin .7s linear infinite",flexShrink:0}}/>}
-const LOGO_B64 = "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIGlkPSJ1dWlkLWU5N2NmNWIzLTgwNjAtNGI5MS1hMjA1LTE5YTA0ZjdlYjA1YSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODg2LjcgMTc5LjkiPjxkZWZzPjxzdHlsZT4udXVpZC1lMTEzNzcwOC04MTc0LTQ1OTgtOWQ5Mi0xMmViZjNkMWJmZWR7ZmlsbDojZjVmNWYyO30udXVpZC1hMzgxNTlkZC1mNWYyLTQ4YWEtODQxNy1jM2YxYjUzN2ZkMTl7ZmlsbDojZGU0OTJmO308L3N0eWxlPjwvZGVmcz48ZyBpZD0idXVpZC1lYmQ4YzY5MS1kNDJhLTQwZTEtODNjZC1mODkzZjNmZmYxZmEiPjxwYXRoIGNsYXNzPSJ1dWlkLWUxMTM3NzA4LTgxNzQtNDU5OC05ZDkyLTEyZWJmM2QxYmZlZCIgZD0iTTgyMiwxMzcuOWMtMy45LDMtOC41LDUuMi0xMy42LDUuMnMtNS40LS43LTcuMS0yLjFjLS40LS4zLS43LS42LTEtMSwwLDAsMCwwLDAtLjEtLjEtLjItLjItLjQtLjMtLjYtLjktMS4zLTEuNS0yLjktMS42LTQuOS0uMS0yLjMuMy01LDEuNC04LjJsNC42LTEzLjhjMy40LTEwLjYsNS0xNyw1LTI0LjYsMC0xNS42LTktMjguNS0yOS44LTI4LjQtMS44LDAtMy41LjEtNS4yLjMtLjcsMC0xLjQuMy0yLjEuNC0uOS4yLTEuNy4zLTIuNS41LTkuMiwyLjItMTYuNyw3LjYtMjIuNywxNC42bDIuMy0xMi4zaC0yNi44czAsLjIsMCwuMmgwbC0yLjYsOC40Yy01LjgsNy44LTE0LjUsMTMuNS0yNCwxNS42LTQuNSwxLTkuMiwxLjItMTMuOC42LTcuMy0xNi44LTIyLjgtMjcuOC00Mi41LTI3LjctMzUuMy4xLTU5LjcsMjkuOC01OS41LDYzLDAsMS4zLDAsMi42LjIsMy44LTQuMSw2LTEzLjUsMTcuMS0yNy44LDE3LjEtMTAuOCwwLTE1LjYtNS0xNS42LTEyLjUsMC02LjQsMi4yLTE0LDcuMi0yOC45bDUuNC0xNi4xLDYuOS0yMC45LDMyLjQuMyw3LTI3LjYtMzAuMi0uMkw1NzgsLjNsLTMzLjEtLjMtMTIuNywzNy43LTI5LjctLjItNy43LDI3LjQsMjguMy4zLTcuMiwyMS40LTMuMiw5LjZjLTUuMywxNS43LTguNywyNy41LTkuMywzNy4xLTYsNy0xNS42LDE1LjEtMjguNSwxNS4zLDUtOS40LDcuOS0yMC4yLDcuOS0zMS0uMS0yNy4zLTE3LjYtNDUuMS00Ny4yLTUzLjRsLTctMi42LDEuMy02LjJoLTI3LjNjMCwuMS0xLjYsOC45LTEuNiw4LjktMy44LDI3LjctMTUuNiw1OS40LTM5LjIsNzQuMi0xLjYuOC0zLjIsMS41LTQuOSwyLjItNy4xLDIuNi0xNC41LDUtMjMuMyw1LTYsMC0xMS4xLS44LTE1LjUtMi40bDE5LTEwLjJjNi41LTIuNSwxMi4zLTUuNSwxNy4yLTkuMyw5LjgtNy40LDE2LTE3LjQsMTUuOS0zMC4zLDAtMTkuNy0xOC43LTMyLjUtNDMuNy0zMi4zLTM2LjkuMi01OS45LDI5LjEtNTkuOCw1OC43LDAsNi45LDEuMywxMy41LDMuNiwxOS42bC0xLjQuOGMtNiwyLjYtMTMsNC45LTE5LjMsNC45LTcuOCwwLTEyLjYtNC41LTEyLjYtMTEuOSwwLTYuOSwyLjUtMTQuMiw3LjctMjkuNmwxMi45LTM4LjhoLTMzLjJjMCwuMS0xNy4yLDU0LjMtMTcuMiw1NC4zLTUuOSwxOC42LTEzLjQsMjYuMi0yMy4zLDI2LjItOCwwLTEyLjItNS0xMi4yLTEyLjMsMC02LjksMi4yLTE0LjcsNy4yLTI5LjFsMTMuMS0zOC44aC0zMy4yYzAsLjEtMTEuMywzMy42LTExLjMsMzMuNi00LjksMTQuMS03LjksMjUuOS04LjQsMzUuNy00LjgsNS40LTExLjYsMTEuMS0xOS44LDExLjItOC4yLDAtMTIuNi01LjQtOC44LTE2LjlsNC41LTEzLjhjMy40LTEwLjYsNS0xNyw0LjktMjQuNSwwLTE1LjYtOS4xLTI4LjQtMjkuOS0yOC4zLTkuNCwwLTE3LjQsMy4xLTI0LjIsOC4xTDg4LjUuNSw1NS4yLjEsMCwxNzIuNmgzMi44YzAtLjEsMTguMy01Ni44LDE4LjMtNTYuOCw1LjctMTcuOSwxMy40LTI0LjYsMjIuMy0yNC42LDcuMSwwLDExLjIsNC4zLDExLjMsMTAuOSwwLDUuNy0xLjMsMTAuNS00LjUsMjEuMWwtMy4yLDkuOWMtNy41LDIzLjksNS40LDQyLjYsMzAsNDIuNSwxNi42LDAsMjkuNi02LjcsMzkuMS0xNC4zLDYuNCw4LjksMTcsMTQuMSwzMC41LDE0LDE1LjEsMCwyNi44LTcuOSwzNC44LTE2LjIsNS4zLDEwLjMsMTUuMiwxNiwyOS40LDE1LjksMTEuOSwwLDIyLjctMy4yLDMxLjctNy4yaDBzLjYtLjMuNi0uM2M0LjEtMS45LDcuOC0zLjksMTEuMS02bDEuOS0xYzExLDguOCwyNi42LDE0LjEsNDYuNiwxNCw2LDAsMTEuMy0xLjEsMTYuNy0yLjEsNy40LTEuNSwxNC4zLTMuOCwyMC43LTYuOCwwLDAsLjIsMCwuMi0uMS40LS4yLjgtLjMsMS4xLS41LDAsMCwwLDAsMC0uMSwyOS4yLTE2LDQ2LjItNDcuNCw1My40LTczLDE3LjQsNSwyNi42LDEzLjYsMjYuNywzMS41LDAsOC41LTEuOCwxNS42LTQuNSwyMC45LTQuMS0uNy04LjMtMS4zLTEzLjgtMS4zLTE1LjEsMC0yNS4yLDYuNy0yNS4xLDE5LjEsMCwxMC44LDkuMiwxNy44LDIyLjgsMTcuOCw4LjIsMCwxNi4zLTMsMjMuNi03LjksNC40LDEuMSw5LjQsMiwxNi4zLDIsMTYuOSwwLDMwLjEtNi44LDM5LjYtMTQuMyw2LjcsOSwxNy45LDE0LjEsMzMsMTQsMjAuNiwwLDM1LjgtMTAuNyw0NS40LTIwLjMsOC4zLDEyLjMsMjEuOCwyMCwzOC4yLDE5LjksMjMuMywwLDQzLjEtMTQuNSw1Mi45LTM1LjMsMy4zLTcuMSw1LjUtMTQuOCw2LjItMjIuNi40LDAsLjcsMCwxLjEsMCw1LjEsMCwxMC4xLS45LDE0LjktMi41LDEuOC0uNiwzLjUtMS40LDUuMi0yLjJsLTMuNCwxMC45LTkuMywyOS4zLTUuOCwxOC41aC40di4yYzAsMCwzMi43LS4xLDMyLjctLjFsMTguMy01Ni43Yy45LTIuNywxLjgtNS4yLDIuNy03LjQsMy40LTcuOCw3LjMtMTIuNiwxMS43LTE1LjEsMi41LTEuNCw1LjItMi4xLDcuOS0yLjEsNy4xLDAsMTEuMiw0LjMsMTEuMywxMC45LDAsNS43LTEuMywxMC41LTQuNSwyMS4xbC0yLjksOS0uMy45Yy03LjYsMjMuOSw1LjMsNDIuNywyOS44LDQyLjcsMTYuOCwwLDMwLTYuOCwzOS42LTE0LjUtNC43LTYuNy05LjItMTMuNS0xMy40LTIwLjVoMFpNMjk5LjIsMTIxLjRjLS41LTIuMy0uNy00LjYtLjctNy4xLDAtMTUuMSwxMS4zLTI4LjIsMjYuMi0yOC4zLDEwLjEsMCwxNy4zLDQuNCwxNy4zLDEwLjgsMCwuMywwLC42LS4xLjktLjUsMi4zLTIsNC4yLTQsNS40bC0zNy4yLDIxLjljLS4zLS41LTEuNC0zLTEuNi0zLjdoMFpNNjU2LjksMTIwLjRjLS42LDIuNi0xLjMsNS4yLTIuMiw3LjQtNS4xLDEzLjMtMjMsMjEuMi0zNSwxMS41LTUuNi00LjUtOC0xMS42LTguMi0xOC41LDAtLjMsMC0uNywwLTEsMC0xNS4xLDEwLjQtMzAuMSwyNS44LTMwLjMsNS45LDAsMTEuOCwxLjgsMTUuNyw2LjQsNS41LDYuNCw1LjgsMTYuMSw0LDI0LjVoMFoiLz48cGF0aCBjbGFzcz0idXVpZC1hMzgxNTlkZC1mNWYyLTQ4YWEtODQxNy1jM2YxYjUzN2ZkMTkiIGQ9Ik04ODYuMiwxMjFsLTExLTZjLTMtMS42LTUuNC00LjEtNy4xLTcuMWwtNi0xMWMtLjMtLjYtMS4zLS42LTEuNiwwbC01LjksMTAuOGMtMS43LDMuMS00LjIsNS42LTcuMyw3LjNsLTEwLjgsNS45Yy0uNi4zLS42LDEuMywwLDEuNmwxMSw2YzMsMS42LDUuNCw0LjEsNyw3bDYsMTFjLjMuNiwxLjMuNiwxLjYsMGw2LTExYzEuNi0zLDQuMS01LjQsNy03bDExLTZjLjYtLjMuNi0xLjMsMC0xLjZoMFoiLz48L2c+PC9zdmc+";
+
+function Spin(){
+  return <span style={{width:13,height:13,border:"2px solid rgba(255,255,255,0.2)",borderTop:"2px solid #fff",borderRadius:"50%",display:"inline-block",animation:"spin .7s linear infinite",flexShrink:0}}/>;
+}
 
 function App(){
   const [sites,setSites]=useState([]);
@@ -87,6 +96,7 @@ function App(){
   const [scans,setScans]=useState({});
   const [pageSpeed,setPageSpeed]=useState({});
   const [scanning,setScanning]=useState({});
+  const [scanningAll,setScanningAll]=useState(false);
   const [logs,setLogs]=useState({});
   const [scanErrors,setScanErrors]=useState({});
   const [notionLinks,setNotionLinks]=useState({});
@@ -100,7 +110,6 @@ function App(){
   const [expanded,setExpanded]=useState(null);
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
-  const [scanningAll,setScanningAll]=useState(false);
 
   useEffect(()=>{
     fetch("/api/sites").then(r=>r.json()).then(data=>{
@@ -108,11 +117,10 @@ function App(){
       if(data.sites)setSites(data.sites);
       if(data.scans)setScans(data.scans);
       if(data.settings){
-        const links={};
-        const users={};
-        Object.entries(data.settings).forEach(([url,s])=>{
-          if(s.notionLink)links[url]=s.notionLink;
-          if(s.notionUser)users[url]=s.notionUser;
+        const links={},users={};
+        Object.entries(data.settings).forEach(([u,s])=>{
+          if(s.notionLink)links[u]=s.notionLink;
+          if(s.notionUser)users[u]=s.notionUser;
         });
         setNotionLinks(links);
         setNotionUsers(users);
@@ -121,6 +129,10 @@ function App(){
   },[]);
 
   const log=(url,msg)=>setLogs(s=>({...s,[url]:msg}));
+
+  const saveSettings=(url,link,user)=>{
+    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,notionLink:link,notionUser:user})}).catch(()=>{});
+  };
 
   const addSite=async()=>{
     let v=newSite.trim().replace(/\/$/,"");
@@ -142,9 +154,7 @@ function App(){
     if(active===url){setActive(null);setView("dashboard");}
   };
 
-  const saveSettings=(url,link,user)=>{
-    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,notionLink:link,notionUser:user})}).catch(()=>{});
-  };
+  const runScan=useCallback(async(url)=>{
     setScanning(s=>({...s,[url]:true}));
     setScanErrors(s=>({...s,[url]:null}));
     log(url,"Scanning...");
@@ -163,7 +173,7 @@ function App(){
         if(!r.ok)throw new Error("HTTP "+r.status+": "+raw.slice(0,300));
         const data=JSON.parse(raw);
         if(data.error)throw new Error(JSON.stringify(data.error));
-        if(data.stop_reason==="max_tokens")throw new Error("Response cut off — max_tokens hit.");
+        if(data.stop_reason==="max_tokens")throw new Error("Response cut off.");
         const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
         const match=text.match(/\{[\s\S]*\}/);
         if(!match)throw new Error("No JSON found. Got: "+text.slice(0,200));
@@ -174,7 +184,7 @@ function App(){
     if(seoRes.status==="fulfilled"){
       const result={...seoRes.value,date:new Date().toISOString(),live:true};
       setScans(s=>({...s,[url]:result}));
-      log(url,"✓ Live scan complete");
+      log(url,"Live scan complete");
       fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})}).catch(()=>{});
     } else {
       setScanErrors(s=>({...s,[url]:seoRes.reason.message}));
@@ -204,14 +214,27 @@ function App(){
     if(!scan)return;
     if(!link||!link.trim()){alert("Paste a Notion Database URL first.");return;}
     const dbId=extractDbId(link);
+    const due=getEndOfMonth();
+    const userMention=notionUsers[url]?" Assign to user ID: "+notionUsers[url]+".":"";
     setPushing(s=>({...s,[url]:true}));
     setPushErr(s=>({...s,[url]:null}));
     setPushed(s=>({...s,[url]:false}));
     try{
-      const res=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,mcp_servers:[{type:"url",url:"https://mcp.notion.com/mcp",name:"notion"}],messages:[{role:"user",      content:"Create a new page in Notion database ID: "+dbId+". Set the due date property to "+getEndOfMonth()+". "+notionPrompt(url,scan)+(notionUsers[url]?" Assign to user ID: "+notionUsers[url]+".":"")+" Use the create-pages tool now."}]})});
+      const res=await fetch("/api/scan",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          mcp_servers:[{type:"url",url:"https://mcp.notion.com/mcp",name:"notion"}],
+          messages:[{role:"user",content:"Create a new page in Notion database ID: "+dbId+". Set the due date to "+due+"."+userMention+" "+notionPrompt(url,scan)+" Use the create-pages tool now."}],
+        }),
+      });
       if(!res.ok)throw new Error("HTTP "+res.status);
       setPushed(s=>({...s,[url]:true}));
-    }catch(e){setPushErr(s=>({...s,[url]:e.message}));}
+    }catch(e){
+      setPushErr(s=>({...s,[url]:e.message}));
+    }
     setPushing(s=>({...s,[url]:false}));
   };
 
@@ -224,14 +247,20 @@ function App(){
   const totalCrit=sites.reduce((a,u)=>a+getCrit(u),0);
   const totalMed=sites.reduce((a,u)=>a+getMed(u),0);
 
-  if(loading)return(<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:16}}><Spin/><div style={{color:B.gray,fontSize:14}}>Loading...</div></div>);
+  if(loading)return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:16}}>
+      <Spin/><div style={{color:B.gray,fontSize:14}}>Loading...</div>
+    </div>
+  );
 
   return(
     <div style={{background:"#0f1623",minHeight:"100vh"}}>
+
+      {/* Header */}
       <div style={{background:"#1a2332",borderBottom:"1px solid #22304a",padding:"0 24px"}}>
         <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:60}}>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
-            <img src={"data:image/svg+xml;base64,"+LOGO_B64} alt="Hueston" style={{height:28}}/>
+            <img src={"data:image/svg+xml;base64,"+LOGO} alt="Hueston" style={{height:28}}/>
             <span style={{color:B.gray,fontSize:13,borderLeft:"1px solid #22304a",paddingLeft:16}}>SEO Monitor</span>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -246,16 +275,22 @@ function App(){
       <div style={{maxWidth:1100,margin:"0 auto",padding:"28px 24px"}}>
         {dbErr&&<div style={{background:"rgba(232,41,28,.1)",border:"1px solid rgba(232,41,28,.3)",borderRadius:10,padding:"12px 18px",marginBottom:20,fontSize:13,color:"#e8291c"}}>⚠ Database error: {dbErr}</div>}
 
+        {/* DASHBOARD */}
         {view==="dashboard"&&(
           <div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:28}}>
-              {[{label:"Sites Monitored",val:sites.length,color:"#fff"},{label:"Total Critical Issues",val:totalCrit,color:"#e8291c"},{label:"Total Medium Issues",val:totalMed,color:"#f59e0b"}].map(s=>(
+              {[
+                {label:"Sites Monitored",val:sites.length,color:"#fff"},
+                {label:"Total Critical Issues",val:totalCrit,color:"#e8291c"},
+                {label:"Total Medium Issues",val:totalMed,color:"#f59e0b"},
+              ].map(s=>(
                 <div key={s.label} style={{...card,padding:"18px 20px"}}>
                   <div style={{color:B.gray,fontSize:11,fontWeight:600,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.6px"}}>{s.label}</div>
                   <div style={{fontSize:32,fontWeight:700,color:s.color}}>{s.val}</div>
                 </div>
               ))}
             </div>
+
             <div style={{...card,padding:"18px 20px",marginBottom:22}}>
               <div style={{fontSize:11,fontWeight:600,color:B.gray,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:12}}>Add Client Site</div>
               <div style={{display:"flex",gap:10}}>
@@ -263,6 +298,7 @@ function App(){
                 <button onClick={addSite} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"9px 20px",fontWeight:600,fontSize:13,cursor:"pointer"}}>Add</button>
               </div>
             </div>
+
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               {sites.length===0&&!dbErr&&(
                 <div style={{textAlign:"center",padding:"60px 0",color:B.gray}}>
@@ -278,48 +314,81 @@ function App(){
                 return(
                   <div key={url} style={card}>
                     <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px"}}>
-                      {score!==undefined&&<div style={{textAlign:"center",minWidth:48,flexShrink:0}}><div style={{fontSize:22,fontWeight:800,color:scoreCol(score),lineHeight:1}}>{score}</div><div style={{fontSize:10,color:B.gray,textTransform:"uppercase",marginTop:2}}>Score</div></div>}
+                      {score!==undefined&&(
+                        <div style={{textAlign:"center",minWidth:48,flexShrink:0}}>
+                          <div style={{fontSize:22,fontWeight:800,color:scoreCol(score),lineHeight:1}}>{score}</div>
+                          <div style={{fontSize:10,color:B.gray,textTransform:"uppercase",marginTop:2}}>Score</div>
+                        </div>
+                      )}
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{url}</div>
-                        <div style={{fontSize:12,color:B.gray,marginTop:3}}>{isScanning?(logs[url]||"Starting..."):s?"Scanned "+new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+(s.live?" (live)":" (demo)"):logs[url]||"Not yet scanned"}</div>
+                        <div style={{fontSize:12,color:B.gray,marginTop:3}}>
+                          {isScanning?(logs[url]||"Starting..."):s?"Scanned "+new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+(s.live?" (live)":" (demo)"):logs[url]||"Not yet scanned"}
+                        </div>
                       </div>
-                      {s&&!isScanning&&<div style={{display:"flex",gap:8,flexShrink:0}}><span style={{background:"rgba(232,41,28,.15)",color:"#e8291c",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getCrit(url)} Critical</span><span style={{background:"rgba(245,158,11,.15)",color:"#f59e0b",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getMed(url)} Medium</span></div>}
+                      {s&&!isScanning&&(
+                        <div style={{display:"flex",gap:8,flexShrink:0}}>
+                          <span style={{background:"rgba(232,41,28,.15)",color:"#e8291c",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getCrit(url)} Critical</span>
+                          <span style={{background:"rgba(245,158,11,.15)",color:"#f59e0b",borderRadius:6,padding:"3px 10px",fontSize:12,fontWeight:600}}>{getMed(url)} Medium</span>
+                        </div>
+                      )}
                       <div style={{display:"flex",gap:8,flexShrink:0}}>
-                        {s&&!isScanning&&<button onClick={()=>{setActive(url);setView("results");setTab("all");setExpanded(null);}} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>}
-                        <button onClick={()=>runScan(url)} disabled={isScanning} style={{background:isScanning?"#22304a":"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:isScanning?"default":"pointer",opacity:isScanning?0.6:1,display:"flex",alignItems:"center",gap:6}}>{isScanning?<><Spin/> Scanning...</>:s?"Re-scan":"Scan Now"}</button>
+                        {s&&!isScanning&&(
+                          <button onClick={()=>{setActive(url);setView("results");setTab("all");setExpanded(null);}} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>
+                        )}
+                        <button onClick={()=>runScan(url)} disabled={isScanning} style={{background:isScanning?"#22304a":"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:isScanning?"default":"pointer",opacity:isScanning?0.6:1,display:"flex",alignItems:"center",gap:6}}>
+                          {isScanning?<><Spin/> Scanning...</>:s?"Re-scan":"Scan Now"}
+                        </button>
                         <button onClick={()=>removeSite(url)} style={{background:"none",color:B.gray,border:"1px solid #22304a",borderRadius:6,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
                       </div>
                     </div>
+
+                    {/* Notion settings row */}
                     {s&&!isScanning&&(
                       <div style={{borderTop:"1px solid #22304a",background:"#0c1520"}}>
-                        <div style={{padding:"11px 20px",display:"flex",alignItems:"center",gap:10}}>
+                        <div style={{padding:"11px 20px 6px",display:"flex",alignItems:"center",gap:10}}>
                           <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
-                          <input value={notionLinks[url]||""} onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}/>
-                          <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0,opacity:pushing[url]?0.7:1}}>{pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Push to Notion"}</button>
+                          <input
+                            value={notionLinks[url]||""}
+                            onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}}
+                            placeholder="Paste Notion database URL or ID..."
+                            style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}
+                          />
+                          <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0,opacity:pushing[url]?0.7:1}}>
+                            {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Push to Notion"}
+                          </button>
                         </div>
                         <div style={{padding:"0 20px 11px",display:"flex",alignItems:"center",gap:10}}>
                           <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Tag user:</span>
-                          <input value={notionUsers[url]||""} onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}} placeholder="Notion user ID (optional — auto-tagged in monthly reports)" style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}/>
+                          <input
+                            value={notionUsers[url]||""}
+                            onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}}
+                            placeholder="Notion user ID (optional — tagged in monthly auto-reports)"
+                            style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}
+                          />
                           {notionLinks[url]&&<span style={{fontSize:11,color:"#22c55e",whiteSpace:"nowrap",flexShrink:0}}>✓ Auto-push on</span>}
                         </div>
                       </div>
                     )}
+
                     {scanErrors[url]&&<div style={{borderTop:"1px solid rgba(245,158,11,.2)",padding:"10px 20px",background:"rgba(245,158,11,.06)",fontSize:12,color:"#f59e0b"}}><strong>⚠ Live scan failed — showing demo data.</strong> Error: {scanErrors[url]}</div>}
                     {pushErr[url]&&<div style={{borderTop:"1px solid rgba(232,41,28,.2)",padding:"8px 20px",background:"rgba(232,41,28,.08)",fontSize:12,color:"#e8291c"}}>Notion error: {pushErr[url]}</div>}
                   </div>
                 );
               })}
             </div>
+
             <div style={{marginTop:24,background:"rgba(232,41,28,.08)",border:"1px solid rgba(232,41,28,.25)",borderRadius:10,padding:"14px 18px",display:"flex",gap:12,alignItems:"center"}}>
               <span style={{fontSize:18}}>📅</span>
               <div>
                 <div style={{fontSize:13,fontWeight:600,color:"#e8291c",marginBottom:2}}>Monthly Auto-Scan Scheduled</div>
-                <div style={{fontSize:12,color:B.gray}}>All sites scan automatically on the 1st of each month. Results are saved to your database.</div>
+                <div style={{fontSize:12,color:B.gray}}>All sites scan on the 1st of each month. Tasks auto-push to Notion with end-of-month due dates.</div>
               </div>
             </div>
           </div>
         )}
 
+        {/* RESULTS */}
         {view==="results"&&scan&&(
           <div>
             <div style={{marginBottom:22}}>
@@ -328,6 +397,7 @@ function App(){
               <div style={{fontSize:12,color:B.gray,marginBottom:14}}>Scanned {new Date(scan.date).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</div>
               {scan.summary&&<div style={{background:"#1a2332",border:"1px solid #22304a",borderRadius:10,padding:"14px 18px",fontSize:14,color:"#a8bbd4",lineHeight:1.7}}>{scan.summary}</div>}
             </div>
+
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
               {[
                 {label:"SEO Score",val:scan.score+"/100",color:scoreCol(scan.score)},
@@ -342,6 +412,7 @@ function App(){
               ))}
             </div>
 
+            {/* PageSpeed */}
             {pageSpeed[active]&&(()=>{
               const ps=pageSpeed[active];
               return(
@@ -381,12 +452,16 @@ function App(){
               );
             })()}
 
+            {/* Notion push */}
             <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
               <input value={notionLinks[active]||""} onChange={e=>setNotionLinks(s=>({...s,[active]:e.target.value}))} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"7px 12px",color:"#fff",fontSize:13,outline:"none"}}/>
-              <button onClick={()=>doPush(active)} disabled={pushing[active]} style={{background:pushed[active]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>{pushing[active]?<><Spin/> Pushing...</>:pushed[active]?"✓ Sent":"→ Push to Notion"}</button>
+              <button onClick={()=>doPush(active)} disabled={pushing[active]} style={{background:pushed[active]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                {pushing[active]?<><Spin/> Pushing...</>:pushed[active]?"✓ Sent":"→ Push to Notion"}
+              </button>
             </div>
 
+            {/* Tabs */}
             <div style={{display:"flex",gap:4,marginBottom:20,background:"#1a2332",borderRadius:8,padding:4,width:"fit-content",border:"1px solid #22304a"}}>
               {[["all","All Issues"],["critical","Critical"],["medium","Medium"]].map(([k,l])=>(
                 <button key={k} onClick={()=>{setTab(k);setExpanded(null);}} style={{background:tab===k?"#e8291c":"none",color:tab===k?"#fff":B.gray,border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
@@ -451,6 +526,7 @@ function App(){
     </div>
   );
 }
+
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
