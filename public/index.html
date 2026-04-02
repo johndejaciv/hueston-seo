@@ -63,10 +63,16 @@ function demoScan(url){
 function auditPrompt(url){
   return "SEO audit of "+url+". Search for: site:"+url+" and "+url+" sitemap robots pagespeed. Return ONLY JSON: {\"url\":\""+url+"\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<id>\",\"label\":\"<label>\",\"priority\":\"critical or medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}";
 }
+function getEndOfMonth(){
+  const now=new Date();
+  const end=new Date(now.getFullYear(),now.getMonth()+1,0);
+  return end.toISOString().split("T")[0];
+}
 function notionPrompt(url,scan){
   const crit=scan.issues.filter(i=>i.priority==="critical");
   const med=scan.issues.filter(i=>i.priority==="medium");
-  return "Create a Notion SEO task. Respond ONLY with valid JSON: {\"title\":\"<site+month/year SEO Audit>\",\"priority\":\"High|Medium|Low\",\"body\":\"<markdown ## Critical Issues ## Medium Issues ## Next Steps with - [ ] checkboxes>\"}. Site="+url+" Score="+scan.score+"/100 Critical("+crit.length+")="+crit.map(i=>i.label+": "+i.fix).join("; ")+" Medium("+med.length+")="+med.map(i=>i.label+": "+i.fix).join("; ");
+  const due=getEndOfMonth();
+  return "Create a Notion SEO task. Respond ONLY with valid JSON: {\"title\":\"<site+month/year SEO Audit>\",\"priority\":\"High|Medium|Low\",\"due_date\":\""+due+"\",\"body\":\"<markdown ## Critical Issues ## Medium Issues ## Next Steps with - [ ] checkboxes>\"}. Site="+url+" Score="+scan.score+"/100 Critical("+crit.length+")="+crit.map(i=>i.label+": "+i.fix).join("; ")+" Medium("+med.length+")="+med.map(i=>i.label+": "+i.fix).join("; ");
 }
 function extractDbId(input){
   const m=input.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
@@ -84,6 +90,7 @@ function App(){
   const [logs,setLogs]=useState({});
   const [scanErrors,setScanErrors]=useState({});
   const [notionLinks,setNotionLinks]=useState({});
+  const [notionUsers,setNotionUsers]=useState({});
   const [pushing,setPushing]=useState({});
   const [pushed,setPushed]=useState({});
   const [pushErr,setPushErr]=useState({});
@@ -100,6 +107,16 @@ function App(){
       if(data.error)setDbErr(data.error);
       if(data.sites)setSites(data.sites);
       if(data.scans)setScans(data.scans);
+      if(data.settings){
+        const links={};
+        const users={};
+        Object.entries(data.settings).forEach(([url,s])=>{
+          if(s.notionLink)links[url]=s.notionLink;
+          if(s.notionUser)users[url]=s.notionUser;
+        });
+        setNotionLinks(links);
+        setNotionUsers(users);
+      }
     }).catch(e=>setDbErr(e.message)).finally(()=>setLoading(false));
   },[]);
 
@@ -125,7 +142,9 @@ function App(){
     if(active===url){setActive(null);setView("dashboard");}
   };
 
-  const runScan=useCallback(async(url)=>{
+  const saveSettings=(url,link,user)=>{
+    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,notionLink:link,notionUser:user})}).catch(()=>{});
+  };
     setScanning(s=>({...s,[url]:true}));
     setScanErrors(s=>({...s,[url]:null}));
     log(url,"Scanning...");
@@ -189,7 +208,7 @@ function App(){
     setPushErr(s=>({...s,[url]:null}));
     setPushed(s=>({...s,[url]:false}));
     try{
-      const res=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,mcp_servers:[{type:"url",url:"https://mcp.notion.com/mcp",name:"notion"}],messages:[{role:"user",content:"Create a new page in Notion database ID: "+dbId+". "+notionPrompt(url,scan)+" Use the create-pages tool now."}]})});
+      const res=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,mcp_servers:[{type:"url",url:"https://mcp.notion.com/mcp",name:"notion"}],messages:[{role:"user",      content:"Create a new page in Notion database ID: "+dbId+". Set the due date property to "+getEndOfMonth()+". "+notionPrompt(url,scan)+(notionUsers[url]?" Assign to user ID: "+notionUsers[url]+".":"")+" Use the create-pages tool now."}]})});
       if(!res.ok)throw new Error("HTTP "+res.status);
       setPushed(s=>({...s,[url]:true}));
     }catch(e){setPushErr(s=>({...s,[url]:e.message}));}
@@ -272,10 +291,17 @@ function App(){
                       </div>
                     </div>
                     {s&&!isScanning&&(
-                      <div style={{borderTop:"1px solid #22304a",padding:"11px 20px",background:"#0c1520",display:"flex",alignItems:"center",gap:10}}>
-                        <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
-                        <input value={notionLinks[url]||""} onChange={e=>setNotionLinks(s=>({...s,[url]:e.target.value}))} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}/>
-                        <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0,opacity:pushing[url]?0.7:1}}>{pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent to Notion":"→ Push to Notion"}</button>
+                      <div style={{borderTop:"1px solid #22304a",background:"#0c1520"}}>
+                        <div style={{padding:"11px 20px",display:"flex",alignItems:"center",gap:10}}>
+                          <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
+                          <input value={notionLinks[url]||""} onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}/>
+                          <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0,opacity:pushing[url]?0.7:1}}>{pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Push to Notion"}</button>
+                        </div>
+                        <div style={{padding:"0 20px 11px",display:"flex",alignItems:"center",gap:10}}>
+                          <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Tag user:</span>
+                          <input value={notionUsers[url]||""} onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}} placeholder="Notion user ID (optional — auto-tagged in monthly reports)" style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}/>
+                          {notionLinks[url]&&<span style={{fontSize:11,color:"#22c55e",whiteSpace:"nowrap",flexShrink:0}}>✓ Auto-push on</span>}
+                        </div>
                       </div>
                     )}
                     {scanErrors[url]&&<div style={{borderTop:"1px solid rgba(245,158,11,.2)",padding:"10px 20px",background:"rgba(245,158,11,.06)",fontSize:12,color:"#f59e0b"}}><strong>⚠ Live scan failed — showing demo data.</strong> Error: {scanErrors[url]}</div>}
