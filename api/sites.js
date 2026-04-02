@@ -27,18 +27,19 @@ export default async function handler(req, res) {
     try {
       const sites = (await getJson("sites.json")) || [];
       const scans = {};
+      const settings = (await getJson("settings.json")) || {};
       for (const url of sites) {
         const scan = await getJson("scan-" + encodeURIComponent(url) + ".json");
         if (scan) scans[url] = scan;
       }
-      return res.status(200).json({ sites, scans });
+      return res.status(200).json({ sites, scans, settings });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
   }
 
   if (req.method === "POST") {
-    const { action, url, scan } = req.body;
+    const { action, url, scan, notionLink, notionUser } = req.body;
     try {
       if (action === "add_site") {
         const sites = (await getJson("sites.json")) || [];
@@ -56,6 +57,17 @@ export default async function handler(req, res) {
         const sites = ((await getJson("sites.json")) || []).filter(s => s !== url);
         await putJson("sites.json", sites);
         return res.status(200).json({ ok: true, sites });
+      }
+      if (action === "save_settings") {
+        const settings = (await getJson("settings.json")) || {};
+        if (notionLink !== undefined) {
+          settings[url] = { ...settings[url], notionLink };
+        }
+        if (notionUser !== undefined) {
+          settings[url] = { ...settings[url], notionUser };
+        }
+        await putJson("settings.json", settings);
+        return res.status(200).json({ ok: true, settings });
       }
       return res.status(400).json({ error: "Unknown action" });
     } catch (err) {
