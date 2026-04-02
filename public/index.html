@@ -104,9 +104,9 @@ function App(){
   const [pushStatus,setPushStatus]=useState({}); // {url: {ok, error, date}}
   const [pushed,setPushed]=useState({});
   const [pushErr,setPushErr]=useState({});
-  const [view,setView]=useState("dashboard");
-  const [active,setActive]=useState(null);
-  const [tab,setTab]=useState("all");
+  const [view,setView]=useState(()=>localStorage.getItem("hv")||"dashboard");
+  const [active,setActive]=useState(()=>localStorage.getItem("ha")||null);
+  const [tab,setTab]=useState(()=>localStorage.getItem("ht")||"all");
   const [expanded,setExpanded]=useState(null);
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
@@ -117,7 +117,6 @@ function App(){
       if(data.sites)setSites(data.sites);
       if(data.scans){
         setScans(data.scans);
-        // Restore pageSpeed from saved scan data if present
         const ps={};
         Object.entries(data.scans).forEach(([url,scan])=>{
           if(scan.pageSpeed)ps[url]=scan.pageSpeed;
@@ -138,7 +137,9 @@ function App(){
     }).catch(e=>setDbErr(e.message)).finally(()=>setLoading(false));
   },[]);
 
-  const log=(url,msg)=>setLogs(s=>({...s,[url]:msg}));
+  const setViewP=v=>{setView(v);localStorage.setItem("hv",v);};
+  const setActiveP=v=>{setActive(v);if(v)localStorage.setItem("ha",v);else localStorage.removeItem("ha");};
+  const setTabP=v=>{setTab(v);localStorage.setItem("ht",v);};
 
   const saveSettings=(url,link,user)=>{
     fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,notionLink:link,notionUser:user})}).catch(()=>{});
@@ -161,7 +162,7 @@ function App(){
     const data=await res.json();
     if(data.sites)setSites(data.sites);
     setScans(s=>{const n={...s};delete n[url];return n;});
-    if(active===url){setActive(null);setView("dashboard");}
+    if(active===url){setActiveP(null);setViewP("dashboard");}
   };
 
   const runScan=useCallback(async(url)=>{
@@ -283,7 +284,7 @@ function App(){
             <span style={{color:B.gray,fontSize:13,borderLeft:"1px solid #22304a",paddingLeft:16}}>SEO Monitor</span>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            {view==="results"&&<button onClick={()=>setView("dashboard")} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:13}}>← Dashboard</button>}
+            {view==="results"&&<button onClick={()=>setViewP("dashboard")} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:13}}>← Dashboard</button>}
             <button onClick={runAll} disabled={scanningAll} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",opacity:scanningAll?0.6:1,display:"flex",alignItems:"center",gap:6}}>
               {scanningAll?<><Spin/> Scanning...</>:"Scan All"}
             </button>
@@ -353,7 +354,7 @@ function App(){
                       )}
                       <div style={{display:"flex",gap:8,flexShrink:0}}>
                         {s&&!isScanning&&(
-                          <button onClick={()=>{setActive(url);setView("results");setTab("all");setExpanded(null);}} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>
+                          <button onClick={()=>{setActiveP(url);setViewP("results");setTabP("all");setExpanded(null);}} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>
                         )}
                         <button onClick={()=>runScan(url)} disabled={isScanning} style={{background:isScanning?"#22304a":"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:isScanning?"default":"pointer",opacity:isScanning?0.6:1,display:"flex",alignItems:"center",gap:6}}>
                           {isScanning?<><Spin/> Scanning...</>:s?"Re-scan":"Scan Now"}
@@ -483,7 +484,7 @@ function App(){
             {/* Tabs */}
             <div style={{display:"flex",gap:4,marginBottom:20,background:"#1a2332",borderRadius:8,padding:4,width:"fit-content",border:"1px solid #22304a"}}>
               {[["all","All Issues"],["critical","Critical"],["medium","Medium"]].map(([k,l])=>(
-                <button key={k} onClick={()=>{setTab(k);setExpanded(null);}} style={{background:tab===k?"#e8291c":"none",color:tab===k?"#fff":B.gray,border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
+                <button key={k} onClick={()=>{setTabP(k);setExpanded(null);}} style={{background:tab===k?"#e8291c":"none",color:tab===k?"#fff":B.gray,border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
               ))}
             </div>
 
