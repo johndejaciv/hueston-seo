@@ -23,12 +23,13 @@ const { useState, useCallback, useEffect } = React;
 const B = { navy:"#0f1623", mid:"#1a2332", light:"#22304a", red:"#e8291c", gray:"#8b99ad" };
 const card = { background:"#1a2332", border:"1px solid #22304a", borderRadius:10, overflow:"hidden" };
 const scoreCol = n => n >= 90 ? "#22c55e" : n >= 50 ? "#f59e0b" : "#e8291c";
-const metricCol = n => (n === null || n === undefined) ? "#8b99ad" : n >= 0.9 ? "#22c55e" : n >= 0.5 ? "#f59e0b" : "#e8291c";
+const metricCol = n => (n == null) ? "#8b99ad" : n >= 0.9 ? "#22c55e" : n >= 0.5 ? "#f59e0b" : "#e8291c";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k,v) => { try { localStorage.setItem(k,v); } catch {} } };
 
 const LOGO = "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz48c3ZnIGlkPSJ1dWlkLWU5N2NmNWIzLTgwNjAtNGI5MS1hMjA1LTE5YTA0ZjdlYjA1YSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSIwIDAgODg2LjcgMTc5LjkiPjxkZWZzPjxzdHlsZT4udXVpZC1lMTEzNzcwOC04MTc0LTQ1OTgtOWQ5Mi0xMmViZjNkMWJmZWR7ZmlsbDojZjVmNWYyO30udXVpZC1hMzgxNTlkZC1mNWYyLTQ4YWEtODQxNy1jM2YxYjUzN2ZkMTl7ZmlsbDojZGU0OTJmO308L3N0eWxlPjwvZGVmcz48ZyBpZD0idXVpZC1lYmQ4YzY5MS1kNDJhLTQwZTEtODNjZC1mODkzZjNmZmYxZmEiPjxwYXRoIGNsYXNzPSJ1dWlkLWUxMTM3NzA4LTgxNzQtNDU5OC05ZDkyLTEyZWJmM2QxYmZlZCIgZD0iTTgyMiwxMzcuOWMtMy45LDMtOC41LDUuMi0xMy42LDUuMnMtNS40LS43LTcuMS0yLjFjLS40LS4zLS43LS42LTEtMSwwLDAsMCwwLDAtLjEtLjEtLjItLjItLjQtLjMtLjYtLjktMS4zLTEuNS0yLjktMS42LTQuOS0uMS0yLjMuMy01LDEuNC04LjJsNC42LTEzLjhjMy40LTEwLjYsNS0xNyw1LTI0LjYsMC0xNS42LTktMjguNS0yOS44LTI4LjQtMS44LDAtMy41LjEtNS4yLjMtLjcsMC0xLjQuMy0yLjEuNC0uOS4yLTEuNy4zLTIuNS41LTkuMiwyLjItMTYuNyw3LjYtMjIuNywxNC42bDIuMy0xMi4zaC0yNi44czAsLjIsMCwuMmgwbC0yLjYsOC40Yy01LjgsNy44LTE0LjUsMTMuNS0yNCwxNS42LTQuNSwxLTkuMiwxLjItMTMuOC42LTcuMy0xNi44LTIyLjgtMjcuOC00Mi41LTI3LjctMzUuMy4xLTU5LjcsMjkuOC01OS41LDYzLDAsMS4zLDAsMi42LjIsMy44LTQuMSw2LTEzLjUsMTcuMS0yNy44LDE3LjEtMTAuOCwwLTE1LjYtNS0xNS42LTEyLjUsMC02LjQsMi4yLTE0LDcuMi0yOC45bDUuNC0xNi4xLDYuOS0yMC45LDMyLjQuMyw3LTI3LjYtMzAuMi0uMkw1NzgsLjNsLTMzLjEtLjMtMTIuNywzNy43LTI5LjctLjItNy43LDI3LjQsMjguMy4zLTcuMiwyMS40LTMuMiw5LjZjLTUuMywxNS43LTguNywyNy41LTkuMywzNy4xLTYsNy0xNS42LDE1LjEtMjguNSwxNS4zLDUtOS40LDcuOS0yMC4yLDcuOS0zMS0uMS0yNy4zLTE3LjYtNDUuMS00Ny4yLTUzLjRsLTctMi42LDEuMy02LjJoLTI3LjNjMCwuMS0xLjYsOC45LTEuNiw4LjktMy44LDI3LjctMTUuNiw1OS40LTM5LjIsNzQuMi0xLjYuOC0zLjIsMS41LTQuOSwyLjItNy4xLDIuNi0xNC41LDUtMjMuMyw1LTYsMC0xMS4xLS44LTE1LjUtMi40bDE5LTEwLjJjNi41LTIuNSwxMi4zLTUuNSwxNy4yLTkuMyw5LjgtNy40LDE2LTE3LjQsMTUuOS0zMC4zLDAtMTkuNy0xOC43LTMyLjUtNDMuNy0zMi4zLTM2LjkuMi01OS45LDI5LjEtNTkuOCw1OC43LDAsNi45LDEuMywxMy41LDMuNiwxOS42bC0xLjQuOGMtNiwyLjYtMTMsNC45LTE5LjMsNC45LTcuOCwwLTEyLjYtNC41LTEyLjYtMTEuOSwwLTYuOSwyLjUtMTQuMiw3LjctMjkuNmwxMi45LTM4LjhoLTMzLjJjMCwuMS0xNy4yLDU0LjMtMTcuMiw1NC4zLTUuOSwxOC42LTEzLjQsMjYuMi0yMy4zLDI2LjItOCwwLTEyLjItNS0xMi4yLTEyLjMsMC02LjksMi4yLTE0LjcsNy4yLTI5LjFsMTMuMS0zOC44aC0zMy4yYzAsLjEtMTEuMywzMy42LTExLjMsMzMuNi00LjksMTQuMS03LjksMjUuOS04LjQsMzUuNy00LjgsNS40LTExLjYsMTEuMS0xOS44LDExLjItOC4yLDAtMTIuNi01LjQtOC44LTE2LjlsNC41LTEzLjhjMy40LTEwLjYsNS0xNyw0LjktMjQuNSwwLTE1LjYtOS4xLTI4LjQtMjkuOS0yOC4zLTkuNCwwLTE3LjQsMy4xLTI0LjIsOC4xTDg4LjUuNSw1NS4yLjEsMCwxNzIuNmgzMi44YzAtLjEsMTguMy01Ni44LDE4LjMtNTYuOCw1LjctMTcuOSwxMy40LTI0LjYsMjIuMy0yNC42LDcuMSwwLDExLjIsNC4zLDExLjMsMTAuOSwwLDUuNy0xLjMsMTAuNS00LjUsMjEuMWwtMy4yLDkuOWMtNy41LDIzLjksNS40LDQyLjYsMzAsNDIuNSwxNi42LDAsMjkuNi02LjcsMzkuMS0xNC4zLDYuNCw4LjksMTcsMTQuMSwzMC41LDE0LDE1LjEsMCwyNi44LTcuOSwzNC44LTE2LjIsNS4zLDEwLjMsMTUuMiwxNiwyOS40LDE1LjksMTEuOSwwLDIyLjctMy4yLDMxLjctNy4yaDBzLjYtLjMuNi0uM2M0LjEtMS45LDcuOC0zLjksMTEuMS02bDEuOS0xYzExLDguOCwyNi42LDE0LjEsNDYuNiwxNCw2LDAsMTEuMy0xLjEsMTYuNy0yLjEsNy40LTEuNSwxNC4zLTMuOCwyMC43LTYuOCwwLDAsLjIsMCwuMi0uMS40LS4yLjgtLjMsMS4xLS41LDAsMCwwLDAsMC0uMSwyOS4yLTE2LDQ2LjItNDcuNCw1My40LTczLDE3LjQsNSwyNi42LDEzLjYsMjYuNywzMS41LDAsOC41LTEuOCwxNS42LTQuNSwyMC45LTQuMS0uNy04LjMtMS4zLTEzLjgtMS4zLTE1LjEsMC0yNS4yLDYuNy0yNS4xLDE5LjEsMCwxMC44LDkuMiwxNy44LDIyLjgsMTcuOCw4LjIsMCwxNi4zLTMsMjMuNi03LjksNC40LDEuMSw5LjQsMiwxNi4zLDIsMTYuOSwwLDMwLjEtNi44LDM5LjYtMTQuMyw2LjcsOSwxNy45LDE0LjEsMzMsMTQsMjAuNiwwLDM1LjgtMTAuNyw0NS40LTIwLjMsOC4zLDEyLjMsMjEuOCwyMCwzOC4yLDE5LjksMjMuMywwLDQzLjEtMTQuNSw1Mi45LTM1LjMsMy4zLTcuMSw1LjUtMTQuOCw2LjItMjIuNi40LDAsLjcsMCwxLjEsMCw1LjEsMCwxMC4xLS45LDE0LjktMi41LDEuOC0uNiwzLjUtMS40LDUuMi0yLjJsLTMuNCwxMC45LTkuMywyOS4zLTUuOCwxOC41aC40di4yYzAsMCwzMi43LS4xLDMyLjctLjFsMTguMy01Ni43Yy45LTIuNywxLjgtNS4yLDIuNy03LjQsMy40LTcuOCw3LjMtMTIuNiwxMS43LTE1LjEsMi41LTEuNCw1LjItMi4xLDcuOS0yLjEsNy4xLDAsMTEuMiw0LjMsMTEuMywxMC45LDAsNS43LTEuMywxMC41LTQuNSwyMS4xbC0yLjksOS0uMy45Yy03LjYsMjMuOSw1LjMsNDIuNywyOS44LDQyLjcsMTYuOCwwLDMwLTYuOCwzOS42LTE0LjUtNC43LTYuNy05LjItMTMuNS0xMy40LTIwLjVoMFpNMjk5LjIsMTIxLjRjLS41LTIuMy0uNy00LjYtLjctNy4xLDAtMTUuMSwxMS4zLTI4LjIsMjYuMi0yOC4zLDEwLjEsMCwxNy4zLDQuNCwxNy4zLDEwLjgsMCwuMywwLC42LS4xLjktLjUsMi4zLTIsNC4yLTQsNS40bC0zNy4yLDIxLjljLS4zLS41LTEuNC0zLTEuNi0zLjdoMFpNNjU2LjksMTIwLjRjLS42LDIuNi0xLjMsNS4yLTIuMiw3LjQtNS4xLDEzLjMtMjMsMjEuMi0zNSwxMS41LTUuNi00LjUtOC0xMS42LTguMi0xOC41LDAtLjMsMC0uNywwLTEsMC0xNS4xLDEwLjQtMzAuMSwyNS44LTMwLjMsNS45LDAsMTEuOCwxLjgsMTUuNyw2LjQsNS41LDYuNCw1LjgsMTYuMSw0LDI0LjVoMFoiLz48cGF0aCBjbGFzcz0idXVpZC1hMzgxNTlkZC1mNWYyLTQ4YWEtODQxNy1jM2YxYjUzN2ZkMTkiIGQ9Ik04ODYuMiwxMjFsLTExLTZjLTMtMS42LTUuNC00LjEtNy4xLTcuMWwtNi0xMWMtLjMtLjYtMS4zLS42LTEuNiwwbC01LjksMTAuOGMtMS43LDMuMS00LjIsNS42LTcuMyw3LjNsLTEwLjgsNS45Yy0uNi4zLS42LDEuMywwLDEuNmwxMSw2YzMsMS42LDUuNCw0LjEsNyw3bDYsMTFjLjMuNiwxLjMuNiwxLjYsMGw2LTExYzEuNi0zLDQuMS01LjQsNy03bDExLTZjLjYtLjMuNi0xLjMsMC0xLjZoMFoiLz48L2c+PC9zdmc+";
 
-const POOL = [
+const POOL=[
   {id:"missing_title",label:"Missing or empty title tag",priority:"critical",category:"On-Page",fix:"Add a unique descriptive title tag (50-60 chars) with the primary keyword near the front."},
   {id:"dup_title",label:"Duplicate title tags",priority:"critical",category:"On-Page",fix:"Each page needs a unique title. Audit CMS templates so dynamic titles are generated per-page."},
   {id:"missing_h1",label:"Missing H1 tag",priority:"critical",category:"On-Page",fix:"Add exactly one H1 per page that clearly describes the topic with the primary keyword."},
@@ -101,16 +102,18 @@ function App(){
   const [scanErrors,setScanErrors]=useState({});
   const [notionLinks,setNotionLinks]=useState({});
   const [notionUsers,setNotionUsers]=useState({});
-  const [pushStatus,setPushStatus]=useState({}); // {url: {ok, error, date}}
-  const [pushed,setPushed]=useState({});
+  const [pushStatus,setPushStatus]=useState({});
+  const [pushing,setPushing]=useState({});
   const [pushErr,setPushErr]=useState({});
-  const [view,setView]=useState(()=>localStorage.getItem("hv")||"dashboard");
-  const [active,setActive]=useState(()=>localStorage.getItem("ha")||null);
-  const [tab,setTab]=useState(()=>localStorage.getItem("ht")||"all");
+  const [pushed,setPushed]=useState({});
+  const [view,setView]=useState("dashboard");
+  const [active,setActive]=useState(null);
+  const [tab,setTab]=useState("all");
   const [expanded,setExpanded]=useState(null);
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
 
+  // Restore last view from localStorage after data loads
   useEffect(()=>{
     fetch("/api/sites").then(r=>r.json()).then(data=>{
       if(data.error)setDbErr(data.error);
@@ -134,15 +137,31 @@ function App(){
         setNotionUsers(users);
         setPushStatus(statuses);
       }
+      // Restore nav state after data is loaded
+      const savedView=ls.get("hv");
+      const savedActive=ls.get("ha");
+      const savedTab=ls.get("ht");
+      if(savedView)setView(savedView);
+      if(savedActive)setActive(savedActive);
+      if(savedTab)setTab(savedTab);
     }).catch(e=>setDbErr(e.message)).finally(()=>setLoading(false));
   },[]);
 
-  const setViewP=v=>{setView(v);localStorage.setItem("hv",v);};
-  const setActiveP=v=>{setActive(v);if(v)localStorage.setItem("ha",v);else localStorage.removeItem("ha");};
-  const setTabP=v=>{setTab(v);localStorage.setItem("ht",v);};
+  const log=(url,msg)=>setLogs(s=>({...s,[url]:msg}));
 
-  const saveSettings=(url,link,user)=>{
-    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,notionLink:link,notionUser:user})}).catch(()=>{});
+  const goTo=(v,a=null,t="all")=>{
+    setView(v); ls.set("hv",v);
+    setActive(a); if(a)ls.set("ha",a); else ls.set("ha","");
+    setTab(t); ls.set("ht",t);
+    setExpanded(null);
+  };
+
+  const saveSettings=(url,link,user,ps)=>{
+    const body={action:"save_settings",url};
+    if(link!==undefined)body.notionLink=link;
+    if(user!==undefined)body.notionUser=user;
+    if(ps!==undefined)body.pushStatus=ps;
+    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(()=>{});
   };
 
   const addSite=async()=>{
@@ -162,52 +181,54 @@ function App(){
     const data=await res.json();
     if(data.sites)setSites(data.sites);
     setScans(s=>{const n={...s};delete n[url];return n;});
-    if(active===url){setActiveP(null);setViewP("dashboard");}
+    if(active===url)goTo("dashboard");
   };
 
   const runScan=useCallback(async(url)=>{
     setScanning(s=>({...s,[url]:true}));
     setScanErrors(s=>({...s,[url]:null}));
     log(url,"Scanning...");
-    const [seoRes,psRes]=await Promise.allSettled([
-      fetch("/api/scan",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:4000,
-          tools:[{type:"web_search_20250305",name:"web_search"}],
-          messages:[{role:"user",content:auditPrompt(url)}],
+    try{
+      const [seoRes,psRes]=await Promise.allSettled([
+        fetch("/api/scan",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            model:"claude-sonnet-4-20250514",
+            max_tokens:4000,
+            tools:[{type:"web_search_20250305",name:"web_search"}],
+            messages:[{role:"user",content:auditPrompt(url)}],
+          }),
+        }).then(async r=>{
+          const raw=await r.text();
+          if(!r.ok)throw new Error("HTTP "+r.status+": "+raw.slice(0,200));
+          const data=JSON.parse(raw);
+          if(data.error)throw new Error(JSON.stringify(data.error));
+          if(data.stop_reason==="max_tokens")throw new Error("Response cut off.");
+          const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+          const match=text.match(/\{[\s\S]*\}/);
+          if(!match)throw new Error("No JSON found. Got: "+text.slice(0,150));
+          return JSON.parse(match[0]);
         }),
-      }).then(async r=>{
-        const raw=await r.text();
-        if(!r.ok)throw new Error("HTTP "+r.status+": "+raw.slice(0,300));
-        const data=JSON.parse(raw);
-        if(data.error)throw new Error(JSON.stringify(data.error));
-        if(data.stop_reason==="max_tokens")throw new Error("Response cut off.");
-        const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-        const match=text.match(/\{[\s\S]*\}/);
-        if(!match)throw new Error("No JSON found. Got: "+text.slice(0,200));
-        return JSON.parse(match[0]);
-      }),
-      fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile").then(r=>r.json()).catch(()=>null),
-    ]);
-    if(seoRes.status==="fulfilled"){
+        fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile").then(r=>r.json()).catch(()=>null),
+      ]);
       const psData=(psRes.status==="fulfilled"&&psRes.value&&!psRes.value.error)?psRes.value:null;
-      const result={...seoRes.value,date:new Date().toISOString(),live:true,...(psData?{pageSpeed:psData}:{})};
-      setScans(s=>({...s,[url]:result}));
-      if(psData)setPageSpeed(s=>({...s,[url]:psData}));
-      log(url,"Live scan complete");
-      fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})}).catch(()=>{});
-    } else {
-      setScanErrors(s=>({...s,[url]:seoRes.reason.message}));
-      log(url,"Scan failed — demo data loaded");
-      const demo=demoScan(url);
-      setScans(s=>({...s,[url]:demo}));
-      fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:demo})}).catch(()=>{});
-    }
-    if(psRes.status==="fulfilled"&&psRes.value&&!psRes.value.error){
-      setPageSpeed(s=>({...s,[url]:psRes.value}));
+      if(seoRes.status==="fulfilled"){
+        const result={...seoRes.value,date:new Date().toISOString(),live:true,...(psData?{pageSpeed:psData}:{})};
+        setScans(s=>({...s,[url]:result}));
+        if(psData)setPageSpeed(s=>({...s,[url]:psData}));
+        log(url,"✓ Live scan complete");
+        fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})}).catch(()=>{});
+      } else {
+        setScanErrors(s=>({...s,[url]:seoRes.reason.message}));
+        log(url,"Scan failed — demo data loaded");
+        const demo=demoScan(url);
+        setScans(s=>({...s,[url]:demo}));
+        fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:demo})}).catch(()=>{});
+      }
+    }catch(e){
+      setScanErrors(s=>({...s,[url]:e.message}));
+      log(url,"Error: "+e.message);
     }
     setScanning(s=>({...s,[url]:false}));
   },[]);
@@ -216,15 +237,10 @@ function App(){
     setScanningAll(true);
     for(const url of sites){
       await runScan(url);
-      await sleep(5000);
+      if(sites.indexOf(url)<sites.length-1)await sleep(5000);
     }
     setScanningAll(false);
   },[sites,runScan]);
-
-  const savePushStatus=(url,status)=>{
-    setPushStatus(s=>({...s,[url]:status}));
-    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_settings",url,pushStatus:status})}).catch(()=>{});
-  };
 
   const doPush=async(url)=>{
     const scan=scans[url];
@@ -249,11 +265,15 @@ function App(){
         }),
       });
       if(!res.ok)throw new Error("HTTP "+res.status);
+      const ps={ok:true,date:new Date().toISOString(),error:null};
       setPushed(s=>({...s,[url]:true}));
-      savePushStatus(url,{ok:true,date:new Date().toISOString(),error:null});
+      setPushStatus(s=>({...s,[url]:ps}));
+      saveSettings(url,undefined,undefined,ps);
     }catch(e){
+      const ps={ok:false,date:new Date().toISOString(),error:e.message};
       setPushErr(s=>({...s,[url]:e.message}));
-      savePushStatus(url,{ok:false,date:new Date().toISOString(),error:e.message});
+      setPushStatus(s=>({...s,[url]:ps}));
+      saveSettings(url,undefined,undefined,ps);
     }
     setPushing(s=>({...s,[url]:false}));
   };
@@ -275,8 +295,6 @@ function App(){
 
   return(
     <div style={{background:"#0f1623",minHeight:"100vh"}}>
-
-      {/* Header */}
       <div style={{background:"#1a2332",borderBottom:"1px solid #22304a",padding:"0 24px"}}>
         <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:60}}>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
@@ -284,7 +302,7 @@ function App(){
             <span style={{color:B.gray,fontSize:13,borderLeft:"1px solid #22304a",paddingLeft:16}}>SEO Monitor</span>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            {view==="results"&&<button onClick={()=>setViewP("dashboard")} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:13}}>← Dashboard</button>}
+            {view==="results"&&<button onClick={()=>goTo("dashboard")} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:13}}>← Dashboard</button>}
             <button onClick={runAll} disabled={scanningAll} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",opacity:scanningAll?0.6:1,display:"flex",alignItems:"center",gap:6}}>
               {scanningAll?<><Spin/> Scanning...</>:"Scan All"}
             </button>
@@ -295,15 +313,10 @@ function App(){
       <div style={{maxWidth:1100,margin:"0 auto",padding:"28px 24px"}}>
         {dbErr&&<div style={{background:"rgba(232,41,28,.1)",border:"1px solid rgba(232,41,28,.3)",borderRadius:10,padding:"12px 18px",marginBottom:20,fontSize:13,color:"#e8291c"}}>⚠ Database error: {dbErr}</div>}
 
-        {/* DASHBOARD */}
         {view==="dashboard"&&(
           <div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:28}}>
-              {[
-                {label:"Sites Monitored",val:sites.length,color:"#fff"},
-                {label:"Total Critical Issues",val:totalCrit,color:"#e8291c"},
-                {label:"Total Medium Issues",val:totalMed,color:"#f59e0b"},
-              ].map(s=>(
+              {[{label:"Sites Monitored",val:sites.length,color:"#fff"},{label:"Total Critical Issues",val:totalCrit,color:"#e8291c"},{label:"Total Medium Issues",val:totalMed,color:"#f59e0b"}].map(s=>(
                 <div key={s.label} style={{...card,padding:"18px 20px"}}>
                   <div style={{color:B.gray,fontSize:11,fontWeight:600,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.6px"}}>{s.label}</div>
                   <div style={{fontSize:32,fontWeight:700,color:s.color}}>{s.val}</div>
@@ -331,6 +344,7 @@ function App(){
                 const s=scans[url];
                 const isScanning=scanning[url];
                 const score=s?.score;
+                const ps=pushStatus[url];
                 return(
                   <div key={url} style={card}>
                     <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px"}}>
@@ -343,7 +357,7 @@ function App(){
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{url}</div>
                         <div style={{fontSize:12,color:B.gray,marginTop:3}}>
-                          {isScanning?(logs[url]||"Starting..."):s?"Scanned "+new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+(s.live?" (live)":" (demo)"):logs[url]||"Not yet scanned"}
+                          {isScanning?(logs[url]||"Scanning..."):s?"Scanned "+new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+(s.live?" (live)":" (demo)"):logs[url]||"Not yet scanned"}
                         </div>
                       </div>
                       {s&&!isScanning&&(
@@ -353,9 +367,7 @@ function App(){
                         </div>
                       )}
                       <div style={{display:"flex",gap:8,flexShrink:0}}>
-                        {s&&!isScanning&&(
-                          <button onClick={()=>{setActiveP(url);setViewP("results");setTabP("all");setExpanded(null);}} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>
-                        )}
+                        {s&&!isScanning&&<button onClick={()=>goTo("results",url,"all")} style={{background:"#22304a",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Report</button>}
                         <button onClick={()=>runScan(url)} disabled={isScanning} style={{background:isScanning?"#22304a":"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:isScanning?"default":"pointer",opacity:isScanning?0.6:1,display:"flex",alignItems:"center",gap:6}}>
                           {isScanning?<><Spin/> Scanning...</>:s?"Re-scan":"Scan Now"}
                         </button>
@@ -363,34 +375,21 @@ function App(){
                       </div>
                     </div>
 
-                    {/* Notion settings row — inline collapsed */}
                     {s&&!isScanning&&(
                       <div style={{borderTop:"1px solid #22304a",background:"#0c1520",padding:"10px 20px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                         <span style={{fontSize:11,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion:</span>
-                        <input
-                          value={notionLinks[url]||""}
-                          onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}}
-                          placeholder="DB URL or ID"
-                          style={{flex:2,minWidth:120,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}
-                        />
-                        <input
-                          value={notionUsers[url]||""}
-                          onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}}
-                          placeholder="Tag user ID (optional)"
-                          style={{flex:2,minWidth:100,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}
-                        />
+                        <input value={notionLinks[url]||""} onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}} placeholder="DB URL or ID" style={{flex:2,minWidth:120,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}/>
+                        <input value={notionUsers[url]||""} onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}} placeholder="Tag user ID (optional)" style={{flex:2,minWidth:100,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}/>
                         <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0,opacity:pushing[url]?0.7:1}}>
                           {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Notion"}
                         </button>
                         {notionLinks[url]&&!pushing[url]&&(()=>{
-                          const ps=pushStatus[url];
                           if(!ps)return <span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ Auto</span>;
-                          if(ps.ok)return <span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ Pushed {new Date(ps.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>;
-                          return <span title={ps.error} style={{fontSize:11,color:"#e8291c",flexShrink:0,cursor:"help"}}>✗ Push failed — hover for details</span>;
+                          if(ps.ok)return <span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ {new Date(ps.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>;
+                          return <span title={ps.error} style={{fontSize:11,color:"#e8291c",flexShrink:0,cursor:"help"}}>✗ Push failed</span>;
                         })()}
                       </div>
                     )}
-
                     {scanErrors[url]&&<div style={{borderTop:"1px solid rgba(245,158,11,.2)",padding:"10px 20px",background:"rgba(245,158,11,.06)",fontSize:12,color:"#f59e0b"}}><strong>⚠ Live scan failed — showing demo data.</strong> Error: {scanErrors[url]}</div>}
                     {pushErr[url]&&<div style={{borderTop:"1px solid rgba(232,41,28,.2)",padding:"8px 20px",background:"rgba(232,41,28,.08)",fontSize:12,color:"#e8291c"}}>Notion error: {pushErr[url]}</div>}
                   </div>
@@ -408,7 +407,6 @@ function App(){
           </div>
         )}
 
-        {/* RESULTS */}
         {view==="results"&&scan&&(
           <div>
             <div style={{marginBottom:22}}>
@@ -432,7 +430,6 @@ function App(){
               ))}
             </div>
 
-            {/* PageSpeed */}
             {pageSpeed[active]&&(()=>{
               const ps=pageSpeed[active];
               return(
@@ -472,7 +469,6 @@ function App(){
               );
             })()}
 
-            {/* Notion push */}
             <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
               <input value={notionLinks[active]||""} onChange={e=>setNotionLinks(s=>({...s,[active]:e.target.value}))} placeholder="Paste Notion database URL or ID..." style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"7px 12px",color:"#fff",fontSize:13,outline:"none"}}/>
@@ -481,10 +477,9 @@ function App(){
               </button>
             </div>
 
-            {/* Tabs */}
             <div style={{display:"flex",gap:4,marginBottom:20,background:"#1a2332",borderRadius:8,padding:4,width:"fit-content",border:"1px solid #22304a"}}>
               {[["all","All Issues"],["critical","Critical"],["medium","Medium"]].map(([k,l])=>(
-                <button key={k} onClick={()=>{setTabP(k);setExpanded(null);}} style={{background:tab===k?"#e8291c":"none",color:tab===k?"#fff":B.gray,border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
+                <button key={k} onClick={()=>{setTab(k);ls.set("ht",k);setExpanded(null);}} style={{background:tab===k?"#e8291c":"none",color:tab===k?"#fff":B.gray,border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
               ))}
             </div>
 
