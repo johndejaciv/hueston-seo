@@ -60,12 +60,9 @@ export default async function handler(req, res) {
       }
       if (action === "save_settings") {
         const settings = (await getJson("settings.json")) || {};
-        if (notionLink !== undefined) {
-          settings[url] = { ...settings[url], notionLink };
-        }
-        if (notionUser !== undefined) {
-          settings[url] = { ...settings[url], notionUser };
-        }
+        if (notionLink !== undefined) settings[url] = { ...settings[url], notionLink };
+        if (notionUser !== undefined) settings[url] = { ...settings[url], notionUser };
+        if (req.body.pushStatus !== undefined) settings[url] = { ...settings[url], pushStatus: req.body.pushStatus };
         await putJson("settings.json", settings);
         return res.status(200).json({ ok: true, settings });
       }
