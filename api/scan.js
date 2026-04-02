@@ -10,29 +10,25 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
 
   try {
-    // Force max_tokens to 4000 regardless of what the client sends
-    const body = {
-      ...req.body,
-      max_tokens: 4000,
+    const body = { ...req.body, max_tokens: 4000 };
+
+    // Add MCP beta header only when mcp_servers are present
+    const headers = {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
     };
+    if (body.mcp_servers && body.mcp_servers.length > 0) {
+      headers["anthropic-beta"] = "mcp-client-2025-04-04";
+    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
     const data = await response.json();
-
-    // Log stop reason to help debug
-    if (data.stop_reason && data.stop_reason !== "end_turn") {
-      console.warn("Claude stopped early:", data.stop_reason);
-    }
-
     return res.status(response.status).json(data);
   } catch (err) {
     return res.status(500).json({ error: err.message });
