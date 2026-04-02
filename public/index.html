@@ -343,31 +343,26 @@ function App(){
                       </div>
                     </div>
 
-                    {/* Notion settings row */}
+                    {/* Notion settings row — inline collapsed */}
                     {s&&!isScanning&&(
-                      <div style={{borderTop:"1px solid #22304a",background:"#0c1520"}}>
-                        <div style={{padding:"11px 20px 6px",display:"flex",alignItems:"center",gap:10}}>
-                          <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion DB:</span>
-                          <input
-                            value={notionLinks[url]||""}
-                            onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}}
-                            placeholder="Paste Notion database URL or ID..."
-                            style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}
-                          />
-                          <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"6px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0,opacity:pushing[url]?0.7:1}}>
-                            {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Push to Notion"}
-                          </button>
-                        </div>
-                        <div style={{padding:"0 20px 11px",display:"flex",alignItems:"center",gap:10}}>
-                          <span style={{fontSize:12,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Tag user:</span>
-                          <input
-                            value={notionUsers[url]||""}
-                            onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}}
-                            placeholder="Notion user ID (optional — tagged in monthly auto-reports)"
-                            style={{flex:1,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"6px 12px",color:"#fff",fontSize:12,outline:"none"}}
-                          />
-                          {notionLinks[url]&&<span style={{fontSize:11,color:"#22c55e",whiteSpace:"nowrap",flexShrink:0}}>✓ Auto-push on</span>}
-                        </div>
+                      <div style={{borderTop:"1px solid #22304a",background:"#0c1520",padding:"10px 20px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                        <span style={{fontSize:11,color:B.gray,whiteSpace:"nowrap",flexShrink:0}}>Notion:</span>
+                        <input
+                          value={notionLinks[url]||""}
+                          onChange={e=>{setNotionLinks(s=>({...s,[url]:e.target.value}));saveSettings(url,e.target.value,notionUsers[url]||"");}}
+                          placeholder="DB URL or ID"
+                          style={{flex:2,minWidth:120,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}
+                        />
+                        <input
+                          value={notionUsers[url]||""}
+                          onChange={e=>{setNotionUsers(s=>({...s,[url]:e.target.value}));saveSettings(url,notionLinks[url]||"",e.target.value);}}
+                          placeholder="Tag user ID (optional)"
+                          style={{flex:2,minWidth:100,background:"#22304a",border:"1px solid #2d3f5a",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:12,outline:"none"}}
+                        />
+                        <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0,opacity:pushing[url]?0.7:1}}>
+                          {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Notion"}
+                        </button>
+                        {notionLinks[url]&&<span style={{fontSize:11,color:"#22c55e",flexShrink:0}}>✓ Auto</span>}
                       </div>
                     )}
 
