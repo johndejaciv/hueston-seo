@@ -170,7 +170,12 @@ function App(){
     setScanning(s=>({...s,[url]:false}));
   },[]);
 
-  const doPush=async(url)=>{
+  const runAll = async () => {
+    for (const url of sites) {
+      await runScan(url);
+      await new Promise(r => setTimeout(r, 5000)); // 5s delay between scans
+    }
+  };
     const scan=scans[url];
     const link=notionLinks[url];
     if(!scan)return;
@@ -208,7 +213,7 @@ function App(){
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             {view==="results"&&<button onClick={()=>setView("dashboard")} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:13}}>← Dashboard</button>}
-            <button onClick={()=>sites.forEach(u=>runScan(u))} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Scan All</button>
+            <button onClick={runAll} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Scan All</button>
           </div>
         </div>
       </div>
