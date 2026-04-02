@@ -60,6 +60,7 @@ export default async function handler(req, res) {
         const siteSettings = settings[url] || {};
         if (siteSettings.notionLink) {
           const dbId = extractDbId(siteSettings.notionLink);
+          const due = getEndOfMonth();
           const mention = siteSettings.notionUser ? " Assign to user ID: " + siteSettings.notionUser + "." : "";
           await fetch(base + "/api/scan", {
             method: "POST",
@@ -70,7 +71,7 @@ export default async function handler(req, res) {
               mcp_servers: [{ type: "url", url: "https://mcp.notion.com/mcp", name: "notion" }],
               messages: [{
                 role: "user",
-                content: "Create a new page in Notion database ID: " + dbId + ". " + buildNotionPrompt(url, result) + mention + " Use the create-pages tool now."
+                content: "Create a new page in Notion database ID: " + dbId + ". Set the due date property to " + due + "." + mention + " " + buildNotionPrompt(url, result) + " Use the create-pages tool now."
               }],
             }),
           });
