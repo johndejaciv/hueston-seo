@@ -115,7 +115,15 @@ function App(){
     fetch("/api/sites").then(r=>r.json()).then(data=>{
       if(data.error)setDbErr(data.error);
       if(data.sites)setSites(data.sites);
-      if(data.scans)setScans(data.scans);
+      if(data.scans){
+        setScans(data.scans);
+        // Restore pageSpeed from saved scan data if present
+        const ps={};
+        Object.entries(data.scans).forEach(([url,scan])=>{
+          if(scan.pageSpeed)ps[url]=scan.pageSpeed;
+        });
+        setPageSpeed(ps);
+      }
       if(data.settings){
         const links={},users={};
         Object.entries(data.settings).forEach(([u,s])=>{
@@ -182,8 +190,10 @@ function App(){
       fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile").then(r=>r.json()).catch(()=>null),
     ]);
     if(seoRes.status==="fulfilled"){
-      const result={...seoRes.value,date:new Date().toISOString(),live:true};
+      const psData=(psRes.status==="fulfilled"&&psRes.value&&!psRes.value.error)?psRes.value:null;
+      const result={...seoRes.value,date:new Date().toISOString(),live:true,...(psData?{pageSpeed:psData}:{})};
       setScans(s=>({...s,[url]:result}));
+      if(psData)setPageSpeed(s=>({...s,[url]:psData}));
       log(url,"Live scan complete");
       fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})}).catch(()=>{});
     } else {
