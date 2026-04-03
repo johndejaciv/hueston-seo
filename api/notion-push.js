@@ -1,8 +1,9 @@
 // Direct Notion REST API push — no MCP needed
 // Uses ntn_ token format (Notion's new internal integration token)
 
-const DATABASE_ID    = "28110856346681939b49d58f93578143"; // Hueston Tasks — actual DB ID for REST API
+const DATABASE_ID    = "28110856346681939b49d58f93578143"; // Hueston Tasks
 const ASSIGNEE_ID    = "1edd872b-594c-818e-b5fe-000225734adb"; // John DeJac
+const CLIENTS_DB_ID  = "28110856-3466-81be-9883-000b0e0f7c88"; // ClientsOS data source
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
