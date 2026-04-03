@@ -49,10 +49,21 @@ export default async function handler(req, res) {
     const { action, url, scan, notionLink, notionUser, pushStatus } = req.body;
     try {
       if (action === "add_site") {
-        const sites = (await getJson("sites.json")) || [];
-        if (!sites.includes(url)) {
-          sites.push(url);
-          await putJson("sites.json", sites);
+        // Retry up to 3 times to handle blob cache staleness
+        let sites = [];
+        for (let i = 0; i < 3; i++) {
+          await new Promise(r => setTimeout(r, i * 200)); // back-off
+          sites = (await getJson("sites.json")) || [];
+          if (!sites.includes(url)) {
+            sites.push(url);
+            await putJson("sites.json", sites);
+            // Verify the write took by re-reading
+            await new Promise(r => setTimeout(r, 300));
+            const verify = (await getJson("sites.json")) || [];
+            if (verify.includes(url)) break;
+          } else {
+            break; // already exists
+          }
         }
         return res.status(200).json({ ok: true, sites });
       }
