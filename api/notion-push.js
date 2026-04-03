@@ -1,83 +1,82 @@
-// Pushes directly to Notion using Anthropic API + Notion MCP
-// Data source ID and assignee hardcoded from confirmed Hueston workspace schema
+// Direct Notion REST API push — no MCP needed
+// Uses ntn_ token format (Notion's new internal integration token)
 
 const DATA_SOURCE_ID = "28110856-3466-810c-9e6e-000bc49d36d5";
 const ASSIGNEE_ID    = "1edd872b-594c-818e-b5fe-000225734adb"; // John DeJac
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
+  const notionKey = process.env.NOTION_API_KEY;
+  if (!notionKey) return res.status(500).json({ error: "NOTION_API_KEY not set" });
 
   const { title, due, body } = req.body;
-  if (!title) return res.status(400).json({ error: "title required" });
+  if (!title) return res.status(400).json({ error: "title is required" });
 
-  // Convert body text to Notion markdown blocks
-  const content = (body || "").split("\n").map(line => {
-    if (line.startsWith("## ")) return "## " + line.replace(/^## /, "");
-    if (line.startsWith("- [ ] ")) return "- [ ] " + line.replace(/^- \[ \] /, "");
-    if (line.startsWith("- ")) return "- " + line.replace(/^- /, "");
-    return line;
-  }).join("\n");
+  const headers = {
+    "Authorization": `Bearer ${notionKey}`,
+    "Content-Type": "application/json",
+    "Notion-Version": "2022-06-28",
+  };
 
   try {
-    // Single focused call — just create the page, no discovery needed
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    // Test auth first so we get a clear error if token is wrong
+    const authTest = await fetch("https://api.notion.com/v1/users/me", { headers });
+    if (!authTest.ok) {
+      const authErr = await authTest.json();
+      return res.status(401).json({ error: "Notion auth failed: " + (authErr.message || authErr.code || JSON.stringify(authErr)) });
+    }
+
+    // Convert body text to Notion blocks
+    const blocks = (body || "").split("\n").filter(l => l.trim()).map(line => {
+      if (line.startsWith("## ")) return {
+        object: "block", type: "heading_2",
+        heading_2: { rich_text: [{ type: "text", text: { content: line.replace(/^## /, "") } }] }
+      };
+      if (line.startsWith("- [ ] ")) return {
+        object: "block", type: "to_do",
+        to_do: { rich_text: [{ type: "text", text: { content: line.replace(/^- \[ \] /, "") } }], checked: false }
+      };
+      if (line.startsWith("- ")) return {
+        object: "block", type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: [{ type: "text", text: { content: line.replace(/^- /, "") } }] }
+      };
+      return {
+        object: "block", type: "paragraph",
+        paragraph: { rich_text: [{ type: "text", text: { content: line } }] }
+      };
+    });
+
+    // Create the page
+    const createRes = await fetch("https://api.notion.com/v1/pages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "mcp-client-2025-04-04",
-      },
+      headers,
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        mcp_servers: [{ type: "url", url: "https://mcp.notion.com/mcp", name: "notion" }],
-        messages: [{
-          role: "user",
-          content: `Call notion-create-pages with exactly these parameters and nothing else:
-
-parent: {"type": "data_source_id", "data_source_id": "${DATA_SOURCE_ID}"}
-pages: [{
-  "properties": {
-    "Task Name": "${title.replace(/"/g, '\\"')}",
-    "date:Date:start": "${due}",
-    "date:Date:is_datetime": 0,
-    "Status": "To Do",
-    "Cadence": "Monthly",
-    "Assignee": "user://${ASSIGNEE_ID}"
-  },
-  "content": ${JSON.stringify(content)}
-}]
-
-Call the tool now.`
-        }],
+        parent: { database_id: DATA_SOURCE_ID },
+        properties: {
+          "Task Name": { title: [{ text: { content: title } }] },
+          "Date":      { date: { start: due } },
+          "Assignee":  { people: [{ id: ASSIGNEE_ID }] },
+          "Status":    { status: { name: "To Do" } },
+          "Cadence":   { select: { name: "Monthly" } },
+        },
+        children: blocks,
       }),
     });
 
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-    if (!response.ok) throw new Error("API error " + response.status + ": " + JSON.stringify(data));
-
-    // Check response for success or error
-    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-    const toolResults = (data.content || []).filter(b => b.type === "mcp_tool_result");
-
-    // If there are tool results, check them for errors
-    for (const tr of toolResults) {
-      const resultText = tr.content?.[0]?.text || "";
-      if (resultText.includes("error") || resultText.includes("Error")) {
-        throw new Error("Notion MCP error: " + resultText.slice(0, 200));
-      }
+    const created = await createRes.json();
+    if (!createRes.ok) {
+      return res.status(createRes.status).json({
+        error: created.message || created.code || JSON.stringify(created),
+        details: created
+      });
     }
 
-    return res.status(200).json({ ok: true, response: text.slice(0, 200) });
+    return res.status(200).json({ ok: true, pageId: created.id, url: created.url });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
