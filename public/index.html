@@ -333,7 +333,10 @@ function App(){
                         </div>
                       )}
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{url}</div>
+                        <div style={{fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:8}}>
+                          <img src={"https://www.google.com/s2/favicons?domain="+url+"&sz=16"} width="16" height="16" style={{borderRadius:3,flexShrink:0}} onError={e=>e.target.style.display="none"}/>
+                          {url}
+                        </div>
                         <div style={{fontSize:12,color:B.gray,marginTop:3}}>
                           {isScanning?(logs[url]||"Scanning..."):s?"Scanned "+new Date(s.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+(s.live?" (live)":" (demo)"):logs[url]||"Not yet scanned"}
                         </div>
@@ -355,7 +358,7 @@ function App(){
 
                     {s&&!isScanning&&(
                       <div style={{borderTop:"1px solid #22304a",background:"#0c1520",padding:"10px 20px",display:"flex",alignItems:"center",gap:12}}>
-                        <span style={{fontSize:11,color:B.gray,flexShrink:0}}>→ Hueston Tasks</span>
+                        <a href="https://www.notion.so/hueston/28110856346681939b49d58f93578143?v=281108563466812bb2d2000c481e66cc" target="_blank" style={{fontSize:11,color:"#8b8bff",whiteSpace:"nowrap",flexShrink:0,textDecoration:"none"}}>→ Hueston Tasks ↗</a>
                         <div style={{flex:1,fontSize:11,color:"#4a5f78",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>notion.so/hueston/28110856346681939b49d58f93578143</div>
                         <button onClick={()=>doPush(url)} disabled={pushing[url]} style={{background:pushed[url]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,flexShrink:0,opacity:pushing[url]?0.7:1}}>
                           {pushing[url]?<><Spin/> Pushing...</>:pushed[url]?"✓ Sent":"→ Push to Notion"}
