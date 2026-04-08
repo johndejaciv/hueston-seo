@@ -96,6 +96,7 @@ function App(){
   const [active,setActive]=useState(null);
   const [tab,setTab]=useState("all");
   const [expanded,setExpanded]=useState(null);
+  const [psTab,setPsTab]=useState("mobile");
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
 
@@ -106,7 +107,7 @@ function App(){
       if(data.scans){
         setScans(data.scans);
         const ps={};
-        Object.entries(data.scans).forEach(([url,scan])=>{ if(scan.pageSpeed)ps[url]=scan.pageSpeed; });
+        Object.entries(data.scans).forEach(([url,scan])=>{ if(scan.pageSpeed){ const raw=scan.pageSpeed; ps[url]=raw.scores?{[raw.strategy||"mobile"]:raw}:raw; } });
         setPageSpeed(ps);
       }
       if(data.settings){
@@ -159,7 +160,7 @@ function App(){
     setScanErrors(s=>({...s,[url]:null}));
     log(url,"Scanning...");
     try{
-      const [seoRes,psRes]=await Promise.allSettled([
+      const [seoRes,mobileRes,desktopRes]=await Promise.allSettled([
         fetch("/api/scan",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
@@ -180,8 +181,11 @@ function App(){
           return JSON.parse(match[0]);
         }),
         fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=mobile").then(r=>r.json()).catch(()=>null),
+        fetch("/api/pagespeed?url="+encodeURIComponent(url)+"&strategy=desktop").then(r=>r.json()).catch(()=>null),
       ]);
-      const psData=(psRes.status==="fulfilled"&&psRes.value&&!psRes.value.error)?psRes.value:null;
+      const psMobile=(mobileRes.status==="fulfilled"&&mobileRes.value&&!mobileRes.value.error)?mobileRes.value:null;
+      const psDesktop=(desktopRes.status==="fulfilled"&&desktopRes.value&&!desktopRes.value.error)?desktopRes.value:null;
+      const psData=(psMobile||psDesktop)?{...(psMobile?{mobile:psMobile}:{}), ...(psDesktop?{desktop:psDesktop}:{})}:null;
       if(seoRes.status==="fulfilled"){
         const result={...seoRes.value,date:new Date().toISOString(),live:true,...(psData?{pageSpeed:psData}:{})};
         setScans(s=>({...s,[url]:result}));
@@ -408,10 +412,22 @@ function App(){
             </div>
 
             {pageSpeed[active]&&(()=>{
-              const ps=pageSpeed[active];
+              const psData=pageSpeed[active];
+              const ps=psData[psTab]||psData.mobile||psData.desktop;
+              if(!ps)return null;
+              const hasBoth=!!(psData.mobile&&psData.desktop);
               return(
                 <div style={{...card,padding:"18px 20px",marginBottom:20}}>
-                  <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:16}}>Google PageSpeed — Mobile</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                    <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px"}}>Google PageSpeed</div>
+                    {hasBoth&&(
+                      <div style={{display:"flex",gap:2,background:"#0c1520",borderRadius:6,padding:2}}>
+                        {["mobile","desktop"].map(s=>(
+                          <button key={s} onClick={()=>setPsTab(s)} style={{background:psTab===s?"#22304a":"none",color:psTab===s?"#fff":B.gray,border:"none",borderRadius:5,padding:"4px 12px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{s}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
                     {[{label:"Performance",val:ps.scores.performance},{label:"SEO",val:ps.scores.seo},{label:"Accessibility",val:ps.scores.accessibility},{label:"Best Practices",val:ps.scores.bestPractices}].map(s=>(
                       <div key={s.label} style={{background:scoreCol(s.val)+"18",border:"1px solid "+scoreCol(s.val)+"35",borderRadius:8,padding:"12px 14px",textAlign:"center"}}>
