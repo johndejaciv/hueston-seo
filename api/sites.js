@@ -69,7 +69,13 @@ export default async function handler(req, res) {
       }
 
       if (action === "save_scan") {
-        await putJson("scan-" + encodeURIComponent(url) + ".json", scan);
+        const key = "scan-" + encodeURIComponent(url) + ".json";
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await putJson(key, scan);
+          await new Promise(r => setTimeout(r, 300));
+          const verify = await getJson(key);
+          if (verify) break;
+        }
         return res.status(200).json({ ok: true });
       }
 
