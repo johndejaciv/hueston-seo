@@ -193,7 +193,6 @@ function App(){
         log(url,"Scan failed — demo data loaded");
         const demo=demoScan(url);
         setScans(s=>({...s,[url]:demo}));
-        fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:demo})}).catch(()=>{});
       }
     }catch(e){
       setScanErrors(s=>({...s,[url]:e.message}));

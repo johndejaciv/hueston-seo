@@ -63,7 +63,7 @@ export default async function handler(req, res) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
           max_tokens: 4000,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{ role: "user", content: buildPrompt(url) }],
@@ -71,11 +71,18 @@ export default async function handler(req, res) {
       });
 
       const scanData = await scanRes.json();
+      if (!scanRes.ok) throw new Error("Scan API error: " + (scanData.error || JSON.stringify(scanData)));
       const text = (scanData.content || []).filter(b => b.type === "text").map(b => b.text).join("");
       const match = text.match(/\{[\s\S]*\}/);
-      if (!match) { results.push({ url, status: "no_json" }); continue; }
+      if (!match) {
+        results.push({ url, status: "no_json", detail: text.slice(0, 200) || "empty response" });
+        continue;
+      }
 
-      const scan = { ...JSON.parse(match[0]), date: new Date().toISOString(), live: true };
+      let parsed;
+      try { parsed = JSON.parse(match[0]); }
+      catch (jsonErr) { results.push({ url, status: "invalid_json", detail: jsonErr.message }); continue; }
+      const scan = { ...parsed, date: new Date().toISOString(), live: true };
       await putJson("scan-" + encodeURIComponent(url) + ".json", scan);
 
       await delay(5000);
