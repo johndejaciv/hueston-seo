@@ -76,7 +76,7 @@ function auditPrompt(url){
 }
 
 function auditSystem(){
-  return "You are an SEO analyst. Analyze the provided page data and return ONLY valid JSON — no markdown, no extra text.\nSchema: {\"url\":\"<url>\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<slug>\",\"label\":\"<label>\",\"priority\":\"critical|medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}\nScoring: start 100, deduct 10-15 per critical issue, 3-5 per medium. Only report issues evident from the data.";
+  return "You are a senior SEO analyst. Analyze the provided page data and return ONLY valid JSON — no markdown, no extra text.\nSchema: {\"url\":\"<url>\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<slug>\",\"label\":\"<label>\",\"priority\":\"critical|medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<specific actionable fix>\"}],\"passed\":[\"<label>\"]}\nCheck for: missing/short/long title & meta description, missing or duplicate H1, thin content (<300 words), noindex on indexable page, missing canonical, HTTPS issues, redirects, slow response (>2s), large page (>3MB), robots.txt blocking, missing sitemap, missing structured data, wrong schema type for business, missing OG/Twitter tags, images missing alt, missing viewport, missing lang, low internal links, canonical pointing offsite.\nScoring: start 100, deduct 10-15 per critical, 3-5 per medium. Only flag issues actually present in the data. Be specific in fix instructions.";
 }
 
 function Spin(){
@@ -171,7 +171,7 @@ function App(){
           body:JSON.stringify({
             url,
             model:"claude-sonnet-4-20250514",
-            max_tokens:1500,
+            max_tokens:2000,
             system:auditSystem(),
             messages:[{role:"user",content:auditPrompt(url)}],
           }),
