@@ -24,8 +24,10 @@ function getEndOfMonth() {
   return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 }
 
+const AUDIT_SYSTEM = "You are an SEO analyst. Search the given URL once, identify real on-page and technical SEO issues, then return ONLY valid JSON — no markdown, no extra text.\nSchema: {\"url\":\"<url>\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<slug>\",\"label\":\"<label>\",\"priority\":\"critical|medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}\nScoring: start 100, deduct 10-15 per critical issue, 3-5 per medium. Only report issues actually found.";
+
 function buildPrompt(url) {
-  return "SEO audit of " + url + ". Search for: site:" + url + " and " + url + " sitemap robots pagespeed. Return ONLY JSON: {\"url\":\"" + url + "\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<id>\",\"label\":\"<label>\",\"priority\":\"critical or medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<fix>\"}],\"passed\":[\"<label>\"]}";
+  return "Audit: " + url;
 }
 
 function buildBody(scan) {
@@ -64,8 +66,9 @@ export default async function handler(req, res) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-          max_tokens: 4000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          max_tokens: 1500,
+          system: AUDIT_SYSTEM,
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }],
           messages: [{ role: "user", content: buildPrompt(url) }],
         }),
       });
