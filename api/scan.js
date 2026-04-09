@@ -12,7 +12,6 @@ export default async function handler(req, res) {
   try {
     const body = { ...req.body, max_tokens: 4000 };
 
-    // Add MCP beta header only when mcp_servers are present
     const headers = {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
@@ -22,11 +21,20 @@ export default async function handler(req, res) {
       headers["anthropic-beta"] = "mcp-client-2025-04-04";
     }
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const callApi = () => fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
+
+    let response = await callApi();
+
+    // Retry once on rate limit — wait for the retry-after window (capped at 60s)
+    if (response.status === 429) {
+      const retryAfter = parseInt(response.headers.get("retry-after") || "60", 10);
+      await new Promise(r => setTimeout(r, Math.min(retryAfter, 60) * 1000));
+      response = await callApi();
+    }
 
     const data = await response.json();
     return res.status(response.status).json(data);

@@ -211,7 +211,7 @@ function App(){
     setScanningAll(true);
     for(let i=0;i<sites.length;i++){
       await runScan(sites[i]);
-      if(i<sites.length-1)await sleep(8000);
+      if(i<sites.length-1)await sleep(30000);
     }
     setScanningAll(false);
   },[sites,runScan]);
