@@ -172,7 +172,7 @@ function App(){
             model:"claude-sonnet-4-20250514",
             max_tokens:1500,
             system:auditSystem(),
-            tools:[{type:"web_search_20250305",name:"web_search",max_uses:2}],
+            tools:[{type:"web_search_20250305",name:"web_search",max_uses:1}],
             messages:[{role:"user",content:auditPrompt(url)}],
           }),
         }).then(async r=>{
@@ -216,7 +216,7 @@ function App(){
     setScanningAll(true);
     for(let i=0;i<sites.length;i++){
       await runScan(sites[i]);
-      if(i<sites.length-1)await sleep(30000);
+      if(i<sites.length-1)await sleep(65000);
     }
     setScanningAll(false);
   },[sites,runScan]);

@@ -68,7 +68,7 @@ export default async function handler(req, res) {
           model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
           max_tokens: 1500,
           system: AUDIT_SYSTEM,
-          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }],
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 }],
           messages: [{ role: "user", content: buildPrompt(url) }],
         }),
       });
