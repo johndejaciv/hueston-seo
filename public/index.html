@@ -152,11 +152,10 @@ function App(){
   };
 
   const removeSite=async(url)=>{
-    const res=await fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"remove_site",url})});
-    const data=await res.json();
-    if(data.sites)setSites(data.sites);
+    setSites(s=>s.filter(u=>u!==url));
     setScans(s=>{const n={...s};delete n[url];return n;});
     if(active===url)goTo("dashboard");
+    fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"remove_site",url})}).catch(()=>{});
   };
 
   const runScan=useCallback(async(url)=>{
