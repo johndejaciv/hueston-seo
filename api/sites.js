@@ -1,16 +1,29 @@
 import { put, list } from "@vercel/blob";
 
-const STORE_URL = process.env.BLOB_READ_WRITE_TOKEN
-  ? null // will use list()
-  : null;
+// Derive public base URL from token to avoid list() (an "Advanced Operation")
+// Token format: vercel_blob_rw_<STOREID>_<hash>
+// Public URL:   https://<storeid>.public.blob.vercel-storage.com/<key>
+let _blobBase = null;
+function getBlobBase() {
+  if (_blobBase) return _blobBase;
+  const token = process.env.BLOB_READ_WRITE_TOKEN || "";
+  const m = token.match(/vercel_blob_rw_([A-Za-z0-9]+)/i);
+  if (m) _blobBase = `https://${m[1].toLowerCase()}.public.blob.vercel-storage.com`;
+  return _blobBase;
+}
 
 async function getJson(key) {
   try {
+    const base = getBlobBase();
+    if (base) {
+      const res = await fetch(`${base}/${key}?t=${Date.now()}`, { cache: "no-store" });
+      if (res.ok) return await res.json();
+      if (res.status === 404) return null;
+      // non-404 error: fall through to list() fallback
+    }
     const { blobs } = await list({ prefix: key, limit: 1 });
     if (!blobs.length) return null;
-    // Always fetch fresh — add cache-busting param
-    const url = blobs[0].url + "?t=" + Date.now();
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(blobs[0].url + "?t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) return null;
     return await res.json();
   } catch { return null; }

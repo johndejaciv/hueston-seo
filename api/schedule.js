@@ -1,7 +1,22 @@
 import { put, list } from "@vercel/blob";
 
+let _blobBase = null;
+function getBlobBase() {
+  if (_blobBase) return _blobBase;
+  const token = process.env.BLOB_READ_WRITE_TOKEN || "";
+  const m = token.match(/vercel_blob_rw_([A-Za-z0-9]+)/i);
+  if (m) _blobBase = `https://${m[1].toLowerCase()}.public.blob.vercel-storage.com`;
+  return _blobBase;
+}
+
 async function getJson(key) {
   try {
+    const base = getBlobBase();
+    if (base) {
+      const res = await fetch(`${base}/${key}?t=${Date.now()}`, { cache: "no-store" });
+      if (res.ok) return await res.json();
+      if (res.status === 404) return null;
+    }
     const { blobs } = await list({ prefix: key });
     if (!blobs.length) return null;
     const res = await fetch(blobs[0].url);
