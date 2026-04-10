@@ -181,6 +181,24 @@ function App(){
       const psData=(psMobile||psDesktop)?{...(psMobile?{mobile:psMobile}:{}), ...(psDesktop?{desktop:psDesktop}:{})}:null;
       if(seoRes.status==="fulfilled"){
         const result={...seoRes.value,date:new Date().toISOString(),live:true,...(psData?{pageSpeed:psData}:{})};
+        // Inject performance action items if PageSpeed score < 50
+        const psIssues=[];
+        ["mobile","desktop"].forEach(strategy=>{
+          const ps=psData?.[strategy];
+          if(ps&&ps.scores.performance<50){
+            const topOpps=(ps.opportunities||[]).slice(0,5).map(o=>o.label+(o.savings?" ("+o.savings+")":"")).join("; ");
+            psIssues.push({
+              id:"ps-perf-"+strategy,
+              label:"Low PageSpeed Performance — "+strategy+" ("+ps.scores.performance+"/100)",
+              priority:"critical",
+              category:"Performance",
+              count:(ps.opportunities||[]).length||1,
+              affected:[url],
+              fix:topOpps||"Optimize images, reduce render-blocking JS/CSS, enable caching, use a CDN.",
+            });
+          }
+        });
+        if(psIssues.length)result.issues=[...(result.issues||[]),...psIssues];
         setScans(s=>({...s,[url]:result}));
         if(psData)setPageSpeed(s=>({...s,[url]:psData}));
         log(url,"✓ Scan complete"+(result.pagesAudited>1?" ("+result.pagesAudited+" pages)":""));
