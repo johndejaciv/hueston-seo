@@ -35,10 +35,10 @@ export default async function handler(req, res) {
       const sites = (await getJson("sites.json")) || [];
       const settings = (await getJson("settings.json")) || {};
       const scans = {};
-      for (const url of sites) {
+      await Promise.all(sites.map(async (url) => {
         const scan = await getJson("scan-" + encodeURIComponent(url) + ".json");
         if (scan) scans[url] = scan;
-      }
+      }));
       return res.status(200).json({ sites, scans, settings });
     } catch (err) {
       return res.status(500).json({ error: err.message });
@@ -69,13 +69,7 @@ export default async function handler(req, res) {
       }
 
       if (action === "save_scan") {
-        const key = "scan-" + encodeURIComponent(url) + ".json";
-        for (let attempt = 0; attempt < 3; attempt++) {
-          await putJson(key, scan);
-          await new Promise(r => setTimeout(r, 300));
-          const verify = await getJson(key);
-          if (verify) break;
-        }
+        await putJson("scan-" + encodeURIComponent(url) + ".json", scan);
         return res.status(200).json({ ok: true });
       }
 
