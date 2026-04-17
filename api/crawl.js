@@ -121,8 +121,15 @@ function buildSummary(siteUrl, pages, brokenLinks = [], orphaned = []) {
     `=== Issues Found ===`,
   ];
 
+  const longTitle   = ok.filter(p => p.title && p.title.length > 60);
+  const shortTitle  = ok.filter(p => p.title && p.title.length < 30);
+  const longDesc    = ok.filter(p => p.desc && p.desc.length > 160);
+
   if (missingTitle.length)  lines.push(`Missing title: ${missingTitle.length} pages → ${urls(missingTitle)}`);
+  if (longTitle.length)     lines.push(`Title too long (>${60} chars): ${longTitle.length} pages → ${longTitle.map(p => `${p.url} (${p.title.length}c)`).join(", ")}`);
+  if (shortTitle.length)    lines.push(`Title too short (<30 chars): ${shortTitle.length} pages → ${shortTitle.map(p => `${p.url} (${p.title.length}c)`).join(", ")}`);
   if (missingDesc.length)   lines.push(`Missing meta description: ${missingDesc.length} pages → ${urls(missingDesc)}`);
+  if (longDesc.length)      lines.push(`Meta description too long (>160 chars): ${longDesc.length} pages → ${longDesc.map(p => `${p.url} (${p.desc.length}c)`).join(", ")}`);
   if (dupTitles.length)     lines.push(`Duplicate titles: ${dupTitles.length} groups (e.g. "${dupTitles[0][0].slice(0, 50)}" on ${dupTitles[0][1].length} pages: ${dupTitles[0][1].join(", ")})`);
   if (dupDescs.length)      lines.push(`Duplicate meta descriptions: ${dupDescs.length} groups (e.g. on ${dupDescs[0][1].join(", ")})`);
   if (missingH1.length)     lines.push(`Missing H1: ${missingH1.length} pages → ${urls(missingH1)}`);
@@ -166,6 +173,8 @@ Rules:
 - The affected array MUST include ALL URLs where the issue occurs — never truncate or sample.
 - count must equal affected.length (number of pages, not number of element instances).
 - Flag ALL pages with a noindex directive as a critical Indexability issue, even if they appear intentional.
+- Flag title too long/short and meta description too long as On-Page issues whenever present in the data.
+- Flag thin content pages (<300 words) as a medium Content issue whenever present in the data.
 - Prioritise issues affecting many pages. Score: start 100, deduct 10-15 per critical, 3-5 per medium.
 - Only flag issues present in the data. No markdown — ONLY the JSON object.`;
 
