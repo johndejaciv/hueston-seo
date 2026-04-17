@@ -112,7 +112,7 @@ function buildSummary(siteUrl, pages, brokenLinks = [], orphaned = []) {
   ok.forEach(p => { if (p.desc) descCount[p.desc] = (descCount[p.desc] || []).concat(p.url); });
   const dupDescs = Object.entries(descCount).filter(([, v]) => v.length > 1);
 
-  const urls = (arr, n = 5) => arr.slice(0, n).map(p => p.url).join(", ");
+  const urls = (arr) => arr.map(p => p.url).join(", ");
 
   const lines = [
     `Site: ${siteUrl}`,
@@ -123,18 +123,18 @@ function buildSummary(siteUrl, pages, brokenLinks = [], orphaned = []) {
 
   if (missingTitle.length)  lines.push(`Missing title: ${missingTitle.length} pages → ${urls(missingTitle)}`);
   if (missingDesc.length)   lines.push(`Missing meta description: ${missingDesc.length} pages → ${urls(missingDesc)}`);
-  if (dupTitles.length)     lines.push(`Duplicate titles: ${dupTitles.length} groups (e.g. "${dupTitles[0][0].slice(0, 50)}" on ${dupTitles[0][1].length} pages: ${dupTitles[0][1].slice(0, 3).join(", ")})`);
-  if (dupDescs.length)      lines.push(`Duplicate meta descriptions: ${dupDescs.length} groups (e.g. on ${dupDescs[0][1].slice(0, 3).join(", ")})`);
+  if (dupTitles.length)     lines.push(`Duplicate titles: ${dupTitles.length} groups (e.g. "${dupTitles[0][0].slice(0, 50)}" on ${dupTitles[0][1].length} pages: ${dupTitles[0][1].join(", ")})`);
+  if (dupDescs.length)      lines.push(`Duplicate meta descriptions: ${dupDescs.length} groups (e.g. on ${dupDescs[0][1].join(", ")})`);
   if (missingH1.length)     lines.push(`Missing H1: ${missingH1.length} pages → ${urls(missingH1)}`);
   if (multiH1.length)       lines.push(`Multiple H1s: ${multiH1.length} pages → ${urls(multiH1)}`);
-  if (noindexPages.length)  lines.push(`Noindex detected: ${noindexPages.length} pages → ${urls(noindexPages)}`);
-  if (thin.length)          lines.push(`Thin content (<300 words): ${thin.length} pages → ${thin.slice(0, 5).map(p => `${p.url} (${p.wordCount}w)`).join(", ")}`);
-  if (slow.length)          lines.push(`Slow response (>2s): ${slow.length} pages → ${slow.slice(0, 3).map(p => `${p.url} (${p.ms}ms)`).join(", ")}`);
-  if (errors.length)        lines.push(`Error pages: ${errors.length} → ${errors.slice(0, 5).map(p => `${p.url} (${p.status || "failed"})`).join(", ")}`);
-  if (missingCanon.length)  lines.push(`Missing canonical: ${missingCanon.length} pages`);
-  if (totalAltMiss)         lines.push(`Images missing alt text: ${totalAltMiss} total across site`);
-  if (brokenLinks.length)   lines.push(`Broken internal links (4xx/failed): ${brokenLinks.length} → ${brokenLinks.slice(0, 5).map(l => `${l.url} (HTTP ${l.status || "err"})`).join(", ")}`);
-  if (orphaned.length)      lines.push(`Orphaned pages (no internal links pointing to them): ${orphaned.length} → ${orphaned.slice(0, 5).map(p => p.url).join(", ")}`);
+  if (noindexPages.length)  lines.push(`Noindex directive detected: ${noindexPages.length} pages → ${urls(noindexPages)}`);
+  if (thin.length)          lines.push(`Thin content (<300 words): ${thin.length} pages → ${thin.map(p => `${p.url} (${p.wordCount}w)`).join(", ")}`);
+  if (slow.length)          lines.push(`Slow response (>2s): ${slow.length} pages → ${slow.map(p => `${p.url} (${p.ms}ms)`).join(", ")}`);
+  if (errors.length)        lines.push(`Error pages: ${errors.length} → ${errors.map(p => `${p.url} (${p.status || "failed"})`).join(", ")}`);
+  if (missingCanon.length)  lines.push(`Missing canonical: ${missingCanon.length} pages → ${urls(missingCanon)}`);
+  if (totalAltMiss)         lines.push(`Images missing alt text: ${totalAltMiss} total across site, affected pages: ${urls(ok.filter(p => p.missingAlt > 0))}`);
+  if (brokenLinks.length)   lines.push(`Broken internal links (4xx/failed): ${brokenLinks.length} → ${brokenLinks.map(l => `${l.url} (HTTP ${l.status || "err"})`).join(", ")}`);
+  if (orphaned.length)      lines.push(`Orphaned pages (no internal links pointing to them): ${orphaned.length} → ${orphaned.map(p => p.url).join(", ")}`);
 
   lines.push(``, `=== Site Averages ===`);
   lines.push(`Avg response time: ${avgMs}ms | Avg word count: ${avgWords}`);
@@ -161,8 +161,13 @@ function buildSummary(siteUrl, pages, brokenLinks = [], orphaned = []) {
 }
 
 const SYSTEM_PROMPT = `You are a senior SEO analyst. Analyze the provided site crawl data and return ONLY valid JSON — no markdown, no extra text.
-Schema: {"url":"<site-url>","score":<0-100>,"summary":"<2-3 sentences>","issues":[{"id":"<slug>","label":"<label>","priority":"critical|medium","category":"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility","count":<n pages affected>,"affected":["<url1>","<url2>"],"fix":"<specific actionable fix naming exact pages>"}],"passed":["<label>"]}
-Prioritise issues affecting many pages. Score: start 100, deduct 10-15 per critical issue, 3-5 per medium. Only flag issues present in the data. No markdown — ONLY the JSON object.`;
+Schema: {"url":"<site-url>","score":<0-100>,"summary":"<2-3 sentences>","issues":[{"id":"<slug>","label":"<label>","priority":"critical|medium","category":"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility","count":<n>,"affected":["<url1>","<url2>",...],"fix":"<specific actionable fix>"}],"passed":["<label>"]}
+Rules:
+- The affected array MUST include ALL URLs where the issue occurs — never truncate or sample.
+- count must equal affected.length (number of pages, not number of element instances).
+- Flag ALL pages with a noindex directive as a critical Indexability issue, even if they appear intentional.
+- Prioritise issues affecting many pages. Score: start 100, deduct 10-15 per critical, 3-5 per medium.
+- Only flag issues present in the data. No markdown — ONLY the JSON object.`;
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -265,6 +270,20 @@ export default async function handler(req, res) {
     let parsed;
     try { parsed = JSON.parse(match[0]); }
     catch (e) { return res.status(500).json({ error: "Invalid JSON from Claude", detail: e.message }); }
+
+    // Deterministically inject noindex issue if Claude missed it
+    const noindexPages = pages.filter(p => p.noindex && p.status >= 200 && p.status < 300);
+    if (noindexPages.length && !(parsed.issues || []).find(i => /noindex/i.test(i.id + " " + i.label))) {
+      parsed.issues = [{
+        id: "noindex_directive",
+        label: "Pages with noindex directive",
+        priority: "critical",
+        category: "Indexability",
+        count: noindexPages.length,
+        affected: noindexPages.map(p => p.url),
+        fix: "Review each URL and remove the noindex directive (meta robots tag or X-Robots-Tag header) if the page should be indexed by Google.",
+      }, ...(parsed.issues || [])];
+    }
 
     return res.status(200).json({ ...parsed, pagesAudited: pages.length, brokenLinksFound: brokenLinks.length, orphanedFound: orphaned.length });
   } catch (err) {
