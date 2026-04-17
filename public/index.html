@@ -294,7 +294,7 @@ function App(){
 
   const scan=active?scans[active]:null;
   const issues=scan?(scan.issues||[]):[];
-  const filtered=issues.filter(i=>tab==="all"||i.priority===tab);
+  const filtered=issues.filter(i=>tab==="all"||i.priority===tab).sort((a,b)=>a.priority==="critical"&&b.priority!=="critical"?-1:b.priority==="critical"&&a.priority!=="critical"?1:0);
   const cats=[...new Set(filtered.map(i=>i.category))];
   const getCrit=u=>(scans[u]?.issues||[]).filter(i=>i.priority==="critical").length;
   const getMed=u=>(scans[u]?.issues||[]).filter(i=>i.priority==="medium").length;
@@ -438,7 +438,10 @@ function App(){
               <div style={{fontSize:12,color:B.gray,marginBottom:4}}>SEO Report {!scan.live&&<span style={{color:"#f59e0b"}}>(demo data)</span>}</div>
               <div style={{fontSize:20,fontWeight:700,marginBottom:4}}>{active}</div>
               <div style={{fontSize:12,color:B.gray,marginBottom:14}}>Scanned {new Date(scan.date).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}{scan.pagesAudited>1&&<span style={{marginLeft:8,background:"#22304a",borderRadius:4,padding:"1px 8px"}}>{scan.pagesAudited} pages</span>}</div>
-              {scan.summary&&<div style={{background:"#1a2332",border:"1px solid #22304a",borderRadius:10,padding:"14px 18px",fontSize:14,color:"#a8bbd4",lineHeight:1.7}}>{scan.summary}</div>}
+              {scan.summary&&<div style={{background:"#1a2332",border:"1px solid #22304a",borderRadius:10,padding:"14px 18px"}}>
+                <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>Summary</div>
+                <div style={{fontSize:14,color:"#a8bbd4",lineHeight:1.7}}>{scan.summary}</div>
+              </div>}
             </div>
 
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
