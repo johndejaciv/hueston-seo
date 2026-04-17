@@ -63,7 +63,10 @@ async function extractPage(url) {
                    || get(/<meta[^>]+content=["']([^"']{0,400})["'][^>]+name=["']description["']/i);
   const canon       = get(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)/i)
                    || get(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i);
-  const robotsMeta  = get(/<meta[^>]+name=["']robots["'][^>]+content=["']([^"']+)/i);
+  const robotsMeta  = get(/<meta[^>]+name=["']robots["'][^>]+content=["']([^"']+)/i)
+                   || get(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']robots["']/i)
+                   || get(/<meta[^>]+name=["']googlebot["'][^>]+content=["']([^"']+)/i)
+                   || get(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']googlebot["']/i);
   const xRobots     = res.headers.get("x-robots-tag");
   const h1s         = getAll(/<h1[^>]*>([\s\S]*?)<\/h1>/i).slice(0, 3);
   const noindex     = /noindex/i.test(robotsMeta || "") || /noindex/i.test(xRobots || "");
@@ -292,6 +295,21 @@ export default async function handler(req, res) {
         affected: noindexPages.map(p => p.url),
         fix: "Review each URL and remove the noindex directive (meta robots tag or X-Robots-Tag header) if the page should be indexed by Google.",
       }, ...(parsed.issues || [])];
+    }
+
+    // Deterministically inject 404/error issue if Claude missed it
+    const errorPages = pages.filter(p => p.status >= 400 || p.status === 0);
+    const allBroken = [...errorPages.map(p => ({ url: p.url, status: p.status })), ...brokenLinks];
+    if (allBroken.length && !(parsed.issues || []).find(i => /404|broken|error.page/i.test(i.id + " " + i.label))) {
+      parsed.issues = [...(parsed.issues || []), {
+        id: "broken_404",
+        label: "Broken pages / 404 errors",
+        priority: "critical",
+        category: "Technical",
+        count: allBroken.length,
+        affected: allBroken.map(l => l.url + " (HTTP " + (l.status || "err") + ")"),
+        fix: "Set up 301 redirects from all broken URLs to the most relevant live page. Update or remove internal links pointing to these URLs.",
+      }];
     }
 
     return res.status(200).json({ ...parsed, pagesAudited: pages.length, brokenLinksFound: brokenLinks.length, orphanedFound: orphaned.length });
