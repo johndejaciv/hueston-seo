@@ -103,7 +103,7 @@ function App(){
   const [psTab,setPsTab]=useState("mobile");
   const [histories,setHistories]=useState({});
   const [expandedUrls,setExpandedUrls]=useState({});
-  const [maxPages,setMaxPages]=useState(()=>parseInt(ls.get("maxPages")||"50"));
+  const [maxPages,setMaxPages]=useState(()=>parseInt(ls.get("maxPages")||"100"));
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
 
