@@ -101,6 +101,7 @@ function App(){
   const [tab,setTab]=useState("all");
   const [expanded,setExpanded]=useState(null);
   const [psTab,setPsTab]=useState("mobile");
+  const [histories,setHistories]=useState({});
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
 
@@ -119,6 +120,7 @@ function App(){
         Object.entries(data.settings).forEach(([u,s])=>{ if(s.pushStatus)statuses[u]=s.pushStatus; });
         setPushStatus(statuses);
       }
+      if(data.histories)setHistories(data.histories);
       const sv=ls.get("hv"), sa=ls.get("ha"), st=ls.get("ht");
       if(sv)setView(sv);
       if(sa)setActive(sa);
@@ -201,6 +203,12 @@ function App(){
         if(psIssues.length)result.issues=[...(result.issues||[]),...psIssues];
         setScans(s=>({...s,[url]:result}));
         if(psData)setPageSpeed(s=>({...s,[url]:psData}));
+        // Update history state optimistically
+        setHistories(s=>{
+          const prev=s[url]||[];
+          const entry={date:result.date,score:result.score,pagesAudited:result.pagesAudited};
+          return {...s,[url]:[entry,...prev].slice(0,6)};
+        });
         log(url,"✓ Scan complete"+(result.pagesAudited>1?" ("+result.pagesAudited+" pages)":""));
         fetch("/api/sites",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"save_scan",url,scan:result})})
           .then(r=>r.json()).then(d=>{if(!d.ok)log(url,"⚠ Scan saved but may not persist: "+(d.error||"unknown"));})
@@ -342,12 +350,19 @@ function App(){
                 return(
                   <div key={url} style={card}>
                     <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 20px"}}>
-                      {score!==undefined&&(
-                        <div style={{textAlign:"center",minWidth:48,flexShrink:0}}>
-                          <div style={{fontSize:22,fontWeight:800,color:scoreCol(score),lineHeight:1}}>{score}</div>
-                          <div style={{fontSize:10,color:B.gray,textTransform:"uppercase",marginTop:2}}>Score</div>
-                        </div>
-                      )}
+                      {score!==undefined&&(()=>{
+                        const hist=histories[url]||[];
+                        const delta=hist.length>1?hist[0].score-hist[1].score:null;
+                        return(
+                          <div style={{textAlign:"center",minWidth:52,flexShrink:0}}>
+                            <div style={{fontSize:22,fontWeight:800,color:scoreCol(score),lineHeight:1}}>{score}</div>
+                            {delta!==null
+                              ?<div style={{fontSize:10,fontWeight:700,color:delta>0?"#22c55e":delta<0?"#e8291c":B.gray,marginTop:2}}>{delta>0?"▲+":delta<0?"▼":""}{delta===0?"—":Math.abs(delta)}</div>
+                              :<div style={{fontSize:10,color:B.gray,textTransform:"uppercase",marginTop:2}}>Score</div>
+                            }
+                          </div>
+                        );
+                      })()}
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:8}}>
                           <img src={"https://www.google.com/s2/favicons?domain="+url+"&sz=16"} width="16" height="16" style={{borderRadius:3,flexShrink:0}} onError={e=>e.target.style.display="none"}/>
@@ -482,6 +497,32 @@ function App(){
               </button>
               {pushStatus[active]&&<span style={{fontSize:11,color:pushStatus[active].ok?"#22c55e":"#e8291c"}}>{pushStatus[active].ok?"✓ Last pushed "+new Date(pushStatus[active].date).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"✗ Last push failed"}</span>}
             </div>
+
+            {(histories[active]||[]).length>1&&(()=>{
+              const hist=histories[active];
+              return(
+                <div style={{...card,padding:"18px 20px",marginBottom:20}}>
+                  <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:14}}>Score History</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {hist.map((h,i)=>{
+                      const delta=i<hist.length-1?h.score-hist[i+1].score:null;
+                      return(
+                        <div key={i} style={{display:"flex",alignItems:"center",gap:12}}>
+                          <div style={{fontSize:12,color:B.gray,width:72,flexShrink:0}}>{new Date(h.date).toLocaleDateString("en-US",{month:"short",year:"numeric"})}</div>
+                          <div style={{flex:1,background:"#0c1520",borderRadius:4,height:6,overflow:"hidden"}}>
+                            <div style={{width:h.score+"%",height:"100%",background:scoreCol(h.score),transition:"width .4s"}}/>
+                          </div>
+                          <div style={{fontSize:14,fontWeight:800,color:scoreCol(h.score),width:32,textAlign:"right"}}>{h.score}</div>
+                          <div style={{fontSize:11,fontWeight:700,width:36,textAlign:"right",color:delta===null?"transparent":delta>0?"#22c55e":delta<0?"#e8291c":B.gray}}>
+                            {delta!==null&&(delta>0?"▲+":delta<0?"▼":"")}{delta!==null&&(delta===0?"—":Math.abs(delta))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div style={{display:"flex",gap:4,marginBottom:20,background:"#1a2332",borderRadius:8,padding:4,width:"fit-content",border:"1px solid #22304a"}}>
               {[["all","All Issues"],["critical","Critical"],["medium","Medium"]].map(([k,l])=>(

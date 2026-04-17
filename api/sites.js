@@ -47,12 +47,17 @@ export default async function handler(req, res) {
     try {
       const sites = (await getJson("sites.json")) || [];
       const settings = (await getJson("settings.json")) || {};
-      const scans = {};
+      const scans = {}, histories = {};
       await Promise.all(sites.map(async (url) => {
-        const scan = await getJson("scan-" + encodeURIComponent(url) + ".json");
+        const key = encodeURIComponent(url);
+        const [scan, hist] = await Promise.all([
+          getJson("scan-" + key + ".json"),
+          getJson("hist-" + key + ".json"),
+        ]);
         if (scan) scans[url] = scan;
+        if (hist) histories[url] = hist;
       }));
-      return res.status(200).json({ sites, scans, settings });
+      return res.status(200).json({ sites, scans, settings, histories });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -82,7 +87,13 @@ export default async function handler(req, res) {
       }
 
       if (action === "save_scan") {
-        await putJson("scan-" + encodeURIComponent(url) + ".json", scan);
+        const key = encodeURIComponent(url);
+        await putJson("scan-" + key + ".json", scan);
+        // Append to history (keep last 6 entries)
+        const histKey = "hist-" + key + ".json";
+        const hist = (await getJson(histKey)) || [];
+        const entry = { date: scan.date || new Date().toISOString(), score: scan.score, pagesAudited: scan.pagesAudited };
+        await putJson(histKey, [entry, ...hist].slice(0, 6));
         return res.status(200).json({ ok: true });
       }
 

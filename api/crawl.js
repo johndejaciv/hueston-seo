@@ -43,9 +43,9 @@ async function extractPage(url) {
   const res = await fetchDoc(url, 8000);
   const ms  = Date.now() - t0;
 
-  if (!res) return { url, status: 0, ms };
+  if (!res) return { url, status: 0, ms, internalLinks: [] };
   const status = res.status;
-  if (!res.ok)  return { url, status, ms };
+  if (!res.ok)  return { url, status, ms, internalLinks: [] };
 
   const html = await res.text();
 
@@ -73,10 +73,18 @@ async function extractPage(url) {
     .replace(/\s+/g, " ").trim()
     .split(" ").filter(w => w.length > 2).length;
 
-  return { url, status, ms, title, desc, canon, robotsMeta, h1s, noindex, wordCount, missingAlt };
+  // Extract unique internal links (strip query/hash, cap at 50)
+  const origin = new URL(url).origin;
+  const internalLinks = [...new Set(
+    [...html.matchAll(/href=["']([^"'#][^"']*)/gi)]
+      .map(m => { try { const u = new URL(m[1], url); return u.origin === origin ? u.origin + u.pathname : null; } catch { return null; } })
+      .filter(Boolean)
+  )].slice(0, 50);
+
+  return { url, status, ms, title, desc, canon, robotsMeta, h1s, noindex, wordCount, missingAlt, internalLinks };
 }
 
-function buildSummary(siteUrl, pages) {
+function buildSummary(siteUrl, pages, brokenLinks = []) {
   const ok     = pages.filter(p => p.status >= 200 && p.status < 300);
   const errors = pages.filter(p => p.status >= 400 || p.status === 0);
 
@@ -123,6 +131,7 @@ function buildSummary(siteUrl, pages) {
   if (errors.length)        lines.push(`Error pages: ${errors.length} → ${errors.slice(0, 5).map(p => `${p.url} (${p.status || "failed"})`).join(", ")}`);
   if (missingCanon.length)  lines.push(`Missing canonical: ${missingCanon.length} pages`);
   if (totalAltMiss)         lines.push(`Images missing alt text: ${totalAltMiss} total across site`);
+  if (brokenLinks.length)   lines.push(`Broken internal links (4xx/failed): ${brokenLinks.length} → ${brokenLinks.slice(0, 5).map(l => `${l.url} (HTTP ${l.status || "err"})`).join(", ")}`);
 
   lines.push(``, `=== Site Averages ===`);
   lines.push(`Avg response time: ${avgMs}ms | Avg word count: ${avgWords}`);
@@ -184,8 +193,29 @@ export default async function handler(req, res) {
       pages.push(...results);
     }
 
-    // 4. Build aggregate summary and call Claude once
-    const summary = buildSummary(url, pages);
+    // 4. HEAD-check internal links not covered by the crawl (broken link detection)
+    const crawledSet = new Set(toCrawl.map(u => { try { const p = new URL(u); return p.origin + p.pathname; } catch { return u; } }));
+    const allLinked = new Set();
+    pages.forEach(p => (p.internalLinks || []).forEach(l => allLinked.add(l)));
+    const toHeadCheck = [...allLinked].filter(u => !crawledSet.has(u)).slice(0, 50);
+
+    const brokenLinks = [];
+    for (let i = 0; i < toHeadCheck.length; i += 10) {
+      const batch = toHeadCheck.slice(i, i + 10);
+      const results = await Promise.all(batch.map(async u => {
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 4000);
+          const r = await fetch(u, { method: "HEAD", signal: ctrl.signal, headers: FETCH_HEADERS, redirect: "follow" });
+          clearTimeout(t);
+          return r.status >= 400 ? { url: u, status: r.status } : null;
+        } catch { return { url: u, status: 0 }; }
+      }));
+      brokenLinks.push(...results.filter(Boolean));
+    }
+
+    // 5. Build aggregate summary and call Claude once
+    const summary = buildSummary(url, pages, brokenLinks);
 
     const claudeBody = {
       model: model || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
@@ -222,7 +252,7 @@ export default async function handler(req, res) {
     try { parsed = JSON.parse(match[0]); }
     catch (e) { return res.status(500).json({ error: "Invalid JSON from Claude", detail: e.message }); }
 
-    return res.status(200).json({ ...parsed, pagesAudited: pages.length });
+    return res.status(200).json({ ...parsed, pagesAudited: pages.length, brokenLinksFound: brokenLinks.length });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
