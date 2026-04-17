@@ -247,7 +247,7 @@ export default async function handler(req, res) {
 
     const claudeBody = {
       model: model || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-      max_tokens: 2000,
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: `Full site audit: ${url}\n\n${summary}` }],
     };
