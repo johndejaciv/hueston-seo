@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/scan.js":  { "maxDuration": 90  },
-    "api/crawl.js": { "maxDuration": 120 }
+    "api/crawl.js": { "maxDuration": 300 }
   },
   "crons": [{ "path": "/api/schedule", "schedule": "0 9 1 * *" }]
 }

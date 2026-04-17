@@ -102,6 +102,8 @@ function App(){
   const [expanded,setExpanded]=useState(null);
   const [psTab,setPsTab]=useState("mobile");
   const [histories,setHistories]=useState({});
+  const [expandedUrls,setExpandedUrls]=useState({});
+  const [maxPages,setMaxPages]=useState(()=>parseInt(ls.get("maxPages")||"50"));
   const [loading,setLoading]=useState(true);
   const [dbErr,setDbErr]=useState(null);
 
@@ -169,7 +171,7 @@ function App(){
         fetch("/api/crawl",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({url}),
+          body:JSON.stringify({url,maxPages}),
         }).then(async r=>{
           const data=await r.json();
           if(!r.ok||data.error)throw new Error(data.error||"HTTP "+r.status);
@@ -280,6 +282,16 @@ function App(){
     setPushing(s=>({...s,[url]:false}));
   };
 
+  const exportCsv=(url,scan)=>{
+    const rows=[["URL","Category","Priority","Issue","Count","Affected Pages","Fix"]];
+    (scan.issues||[]).forEach(i=>rows.push([url,i.category,i.priority,i.label,i.count,(i.affected||[]).join(" | "),i.fix]));
+    const csv=rows.map(r=>r.map(c=>'"'+String(c==null?"":c).replace(/"/g,'""')+'"').join(",")).join("\n");
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv"}));
+    a.download=(new URL(url).hostname)+"-seo-"+new Date().toISOString().slice(0,10)+".csv";
+    a.click();
+  };
+
   const scan=active?scans[active]:null;
   const issues=scan?(scan.issues||[]):[];
   const filtered=issues.filter(i=>tab==="all"||i.priority===tab);
@@ -305,6 +317,10 @@ function App(){
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             {view==="results"&&<button onClick={()=>goTo("dashboard")} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:13}}>← Dashboard</button>}
+            {view==="results"&&scan&&<button onClick={()=>exportCsv(active,scan)} style={{background:"none",border:"1px solid #22304a",color:B.gray,borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>↓ CSV</button>}
+            <select value={maxPages} onChange={e=>{const v=parseInt(e.target.value);setMaxPages(v);ls.set("maxPages",String(v));}} style={{background:"#22304a",border:"1px solid #2d3f5a",color:"#a8bbd4",borderRadius:6,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>
+              {[50,100,150].map(n=><option key={n} value={n}>{n} pages</option>)}
+            </select>
             <button onClick={runAll} disabled={scanningAll} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",opacity:scanningAll?0.6:1,display:"flex",alignItems:"center",gap:6}}>
               {scanningAll?<><Spin/> Scanning...</>:"Scan All"}
             </button>
@@ -490,12 +506,22 @@ function App(){
               );
             })()}
 
-            <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
+            <div style={{...card,padding:"12px 18px",marginBottom:12,display:"flex",alignItems:"center",gap:12}}>
               <span style={{fontSize:12,color:B.gray,flexShrink:0}}>→ Hueston Tasks</span>
               <button onClick={()=>doPush(active)} disabled={pushing[active]} style={{background:pushed[active]?"#22c55e":"#5b3fa0",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
                 {pushing[active]?<><Spin/> Pushing...</>:pushed[active]?"✓ Sent":"→ Push to Notion"}
               </button>
               {pushStatus[active]&&<span style={{fontSize:11,color:pushStatus[active].ok?"#22c55e":"#e8291c"}}>{pushStatus[active].ok?"✓ Last pushed "+new Date(pushStatus[active].date).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"✗ Last push failed"}</span>}
+            </div>
+            <div style={{...card,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:12,color:B.gray,flexShrink:0,whiteSpace:"nowrap"}}>GSC Property</span>
+              <input
+                placeholder="https://www.google.com/search/console — connect later"
+                defaultValue={""}
+                readOnly
+                style={{flex:1,background:"transparent",border:"none",color:"#4a5f78",fontSize:12,outline:"none",cursor:"default"}}
+              />
+              <span style={{fontSize:11,background:"#22304a",color:B.gray,borderRadius:4,padding:"2px 8px",flexShrink:0,whiteSpace:"nowrap"}}>Coming soon</span>
             </div>
 
             {(histories[active]||[]).length>1&&(()=>{
@@ -556,20 +582,28 @@ function App(){
                         </div>
                         {open&&(
                           <div style={{borderTop:"1px solid #22304a",padding:"14px 18px",background:"#0c1520"}}>
-                            {issue.affected&&issue.affected.length>0&&(
-                              <div style={{marginBottom:14}}>
-                                <div style={{fontSize:11,color:B.gray,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Affected Pages</div>
-                                <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                                  {issue.affected.slice(0,8).map((pg,i)=>(
-                                    <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:13}}>
-                                      <span style={{color:accent,fontSize:9,marginTop:4,flexShrink:0}}>●</span>
-                                      <span style={{color:"#a8bbd4",wordBreak:"break-all"}}>{pg}</span>
-                                    </div>
-                                  ))}
-                                  {issue.affected.length>8&&<div style={{fontSize:12,color:B.gray}}>+{issue.affected.length-8} more</div>}
+                            {issue.affected&&issue.affected.length>0&&(()=>{
+                              const allShown=expandedUrls[issue.id];
+                              const toShow=allShown?issue.affected:issue.affected.slice(0,5);
+                              return(
+                                <div style={{marginBottom:14}}>
+                                  <div style={{fontSize:11,color:B.gray,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Affected Pages ({issue.affected.length})</div>
+                                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                                    {toShow.map((pg,i)=>(
+                                      <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:13}}>
+                                        <span style={{color:accent,fontSize:9,marginTop:4,flexShrink:0}}>●</span>
+                                        <span style={{color:"#a8bbd4",wordBreak:"break-all"}}>{pg}</span>
+                                      </div>
+                                    ))}
+                                    {issue.affected.length>5&&(
+                                      <button onClick={e=>{e.stopPropagation();setExpandedUrls(s=>({...s,[issue.id]:!s[issue.id]}));}} style={{background:"none",border:"none",color:B.gray,fontSize:12,cursor:"pointer",textAlign:"left",padding:"2px 0",marginTop:2}}>
+                                        {allShown?"▲ Show less":"▼ Show all "+issue.affected.length+" pages"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                             <div style={{borderTop:issue.affected&&issue.affected.length?"1px solid #22304a":"none",paddingTop:issue.affected&&issue.affected.length?12:0}}>
                               <div style={{fontSize:11,color:B.gray,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Recommended Fix</div>
                               <div style={{fontSize:13,color:"#a8bbd4",lineHeight:1.7}}>{issue.fix}</div>

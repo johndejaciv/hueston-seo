@@ -1,5 +1,7 @@
 const FETCH_HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; SEOScanner/1.0)" };
-const MAX_PAGES = 50;
+const MAX_PAGES = 150; // hard cap; caller passes desired limit via req.body.maxPages
+
+const norm = u => { try { const p = new URL(u); return p.origin + p.pathname.replace(/\/$/, "") || p.origin; } catch { return u; } };
 
 async function fetchDoc(url, ms = 8000) {
   const ctrl = new AbortController();
@@ -84,7 +86,7 @@ async function extractPage(url) {
   return { url, status, ms, title, desc, canon, robotsMeta, h1s, noindex, wordCount, missingAlt, internalLinks };
 }
 
-function buildSummary(siteUrl, pages, brokenLinks = []) {
+function buildSummary(siteUrl, pages, brokenLinks = [], orphaned = []) {
   const ok     = pages.filter(p => p.status >= 200 && p.status < 300);
   const errors = pages.filter(p => p.status >= 400 || p.status === 0);
 
@@ -132,6 +134,7 @@ function buildSummary(siteUrl, pages, brokenLinks = []) {
   if (missingCanon.length)  lines.push(`Missing canonical: ${missingCanon.length} pages`);
   if (totalAltMiss)         lines.push(`Images missing alt text: ${totalAltMiss} total across site`);
   if (brokenLinks.length)   lines.push(`Broken internal links (4xx/failed): ${brokenLinks.length} → ${brokenLinks.slice(0, 5).map(l => `${l.url} (HTTP ${l.status || "err"})`).join(", ")}`);
+  if (orphaned.length)      lines.push(`Orphaned pages (no internal links pointing to them): ${orphaned.length} → ${orphaned.slice(0, 5).map(p => p.url).join(", ")}`);
 
   lines.push(``, `=== Site Averages ===`);
   lines.push(`Avg response time: ${avgMs}ms | Avg word count: ${avgWords}`);
@@ -171,8 +174,9 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
 
-  const { url, model } = req.body;
+  const { url, model, maxPages: reqMax } = req.body;
   if (!url) return res.status(400).json({ error: "url is required" });
+  const pageLimit = Math.min(Math.max(parseInt(reqMax) || 50, 1), MAX_PAGES);
 
   try {
     const base = new URL(url).origin;
@@ -180,9 +184,9 @@ export default async function handler(req, res) {
     // 1. Get URLs from sitemap
     const sitemapUrls = await getSitemapUrls(base);
 
-    // 2. Build crawl list — root URL always first, then sitemap URLs up to MAX_PAGES
+    // 2. Build crawl list — root URL always first, then sitemap URLs up to pageLimit
     const toCrawl = sitemapUrls.length > 0
-      ? [url, ...sitemapUrls.filter(u => u !== url)].slice(0, MAX_PAGES)
+      ? [url, ...sitemapUrls.filter(u => u !== url)].slice(0, pageLimit)
       : [url];
 
     // 3. Crawl pages in batches of 5
@@ -214,8 +218,18 @@ export default async function handler(req, res) {
       brokenLinks.push(...results.filter(Boolean));
     }
 
-    // 5. Build aggregate summary and call Claude once
-    const summary = buildSummary(url, pages, brokenLinks);
+    // 5. Orphaned page detection — crawled OK pages with no inlinks from other crawled pages
+    const normRoot = norm(url);
+    const linkedTo = new Set();
+    pages.forEach(p => (p.internalLinks || []).forEach(l => linkedTo.add(norm(l))));
+    const orphaned = pages.filter(p =>
+      p.status >= 200 && p.status < 300 &&
+      norm(p.url) !== normRoot &&
+      !linkedTo.has(norm(p.url))
+    );
+
+    // 6. Build aggregate summary and call Claude once
+    const summary = buildSummary(url, pages, brokenLinks, orphaned);
 
     const claudeBody = {
       model: model || process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
@@ -252,7 +266,7 @@ export default async function handler(req, res) {
     try { parsed = JSON.parse(match[0]); }
     catch (e) { return res.status(500).json({ error: "Invalid JSON from Claude", detail: e.message }); }
 
-    return res.status(200).json({ ...parsed, pagesAudited: pages.length, brokenLinksFound: brokenLinks.length });
+    return res.status(200).json({ ...parsed, pagesAudited: pages.length, brokenLinksFound: brokenLinks.length, orphanedFound: orphaned.length });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
