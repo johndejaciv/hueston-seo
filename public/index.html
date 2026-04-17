@@ -568,57 +568,68 @@ function App(){
               </div>
             )}
 
-            {cats.map(cat=>(
-              <div key={cat} style={{marginBottom:20}}>
-                <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>{cat}</div>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {filtered.filter(i=>i.category===cat).map(issue=>{
-                    const open=expanded===issue.id;
-                    const accent=issue.priority==="critical"?"#e8291c":"#f59e0b";
-                    return(
-                      <div key={issue.id} style={{...card,border:"1px solid "+(open?accent:"#22304a")}}>
-                        <div onClick={()=>setExpanded(open?null:issue.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 18px",cursor:"pointer"}}>
-                          <span style={{background:accent+"22",color:accent,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:4,textTransform:"uppercase",whiteSpace:"nowrap"}}>{issue.priority}</span>
-                          <div style={{flex:1,fontWeight:600,fontSize:14}}>{issue.label}</div>
-                          <div style={{color:B.gray,fontSize:13,whiteSpace:"nowrap"}}>{issue.count} instance{issue.count!==1?"s":""}</div>
-                          <span style={{color:B.gray,fontSize:11}}>{open?"▲":"▼"}</span>
-                        </div>
-                        {open&&(
-                          <div style={{borderTop:"1px solid #22304a",padding:"14px 18px",background:"#0c1520"}}>
-                            {issue.affected&&issue.affected.length>0&&(()=>{
-                              const allShown=expandedUrls[issue.id];
-                              const toShow=allShown?issue.affected:issue.affected.slice(0,5);
-                              return(
-                                <div style={{marginBottom:14}}>
-                                  <div style={{fontSize:11,color:B.gray,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Affected Pages ({issue.affected.length})</div>
-                                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                                    {toShow.map((pg,i)=>(
-                                      <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:13}}>
-                                        <span style={{color:accent,fontSize:9,marginTop:4,flexShrink:0}}>●</span>
-                                        <span style={{color:"#a8bbd4",wordBreak:"break-all"}}>{pg}</span>
+            {(tab==="all"?["critical","medium"]:[tab]).map(priority=>{
+              const priIssues=filtered.filter(i=>i.priority===priority);
+              if(!priIssues.length)return null;
+              const priCats=[...new Set(priIssues.map(i=>i.category))];
+              const priColor=priority==="critical"?"#e8291c":"#f59e0b";
+              return(
+                <div key={priority} style={{marginBottom:28}}>
+                  {tab==="all"&&<div style={{fontSize:12,fontWeight:700,color:priColor,textTransform:"uppercase",letterSpacing:"1px",marginBottom:16,paddingBottom:10,borderBottom:"1px solid "+priColor+"30"}}>{priority==="critical"?"Critical Issues":"Medium Issues"} ({priIssues.length})</div>}
+                  {priCats.map(cat=>(
+                    <div key={cat} style={{marginBottom:20}}>
+                      <div style={{fontSize:11,fontWeight:700,color:B.gray,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>{cat}</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                        {priIssues.filter(i=>i.category===cat).map(issue=>{
+                          const open=expanded===issue.id;
+                          const accent=issue.priority==="critical"?"#e8291c":"#f59e0b";
+                          return(
+                            <div key={issue.id} style={{...card,border:"1px solid "+(open?accent:"#22304a")}}>
+                              <div onClick={()=>setExpanded(open?null:issue.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"13px 18px",cursor:"pointer"}}>
+                                <span style={{background:accent+"22",color:accent,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:4,textTransform:"uppercase",whiteSpace:"nowrap"}}>{issue.priority}</span>
+                                <div style={{flex:1,fontWeight:600,fontSize:14}}>{issue.label}</div>
+                                <div style={{color:B.gray,fontSize:13,whiteSpace:"nowrap"}}>{issue.count} instance{issue.count!==1?"s":""}</div>
+                                <span style={{color:B.gray,fontSize:11}}>{open?"▲":"▼"}</span>
+                              </div>
+                              {open&&(
+                                <div style={{borderTop:"1px solid #22304a",padding:"14px 18px",background:"#0c1520"}}>
+                                  {issue.affected&&issue.affected.length>0&&(()=>{
+                                    const allShown=expandedUrls[issue.id];
+                                    const toShow=allShown?issue.affected:issue.affected.slice(0,5);
+                                    return(
+                                      <div style={{marginBottom:14}}>
+                                        <div style={{fontSize:11,color:B.gray,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:8}}>Affected Pages ({issue.affected.length})</div>
+                                        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                                          {toShow.map((pg,i)=>(
+                                            <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,fontSize:13}}>
+                                              <span style={{color:accent,fontSize:9,marginTop:4,flexShrink:0}}>●</span>
+                                              <span style={{color:"#a8bbd4",wordBreak:"break-all"}}>{pg}</span>
+                                            </div>
+                                          ))}
+                                          {issue.affected.length>5&&(
+                                            <button onClick={e=>{e.stopPropagation();setExpandedUrls(s=>({...s,[issue.id]:!s[issue.id]}));}} style={{background:"none",border:"none",color:B.gray,fontSize:12,cursor:"pointer",textAlign:"left",padding:"2px 0",marginTop:2}}>
+                                              {allShown?"▲ Show less":"▼ Show all "+issue.affected.length+" pages"}
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
-                                    ))}
-                                    {issue.affected.length>5&&(
-                                      <button onClick={e=>{e.stopPropagation();setExpandedUrls(s=>({...s,[issue.id]:!s[issue.id]}));}} style={{background:"none",border:"none",color:B.gray,fontSize:12,cursor:"pointer",textAlign:"left",padding:"2px 0",marginTop:2}}>
-                                        {allShown?"▲ Show less":"▼ Show all "+issue.affected.length+" pages"}
-                                      </button>
-                                    )}
+                                    );
+                                  })()}
+                                  <div style={{borderTop:issue.affected&&issue.affected.length?"1px solid #22304a":"none",paddingTop:issue.affected&&issue.affected.length?12:0}}>
+                                    <div style={{fontSize:11,color:B.gray,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Recommended Fix</div>
+                                    <div style={{fontSize:13,color:"#a8bbd4",lineHeight:1.7}}>{issue.fix}</div>
                                   </div>
                                 </div>
-                              );
-                            })()}
-                            <div style={{borderTop:issue.affected&&issue.affected.length?"1px solid #22304a":"none",paddingTop:issue.affected&&issue.affected.length?12:0}}>
-                              <div style={{fontSize:11,color:B.gray,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Recommended Fix</div>
-                              <div style={{fontSize:13,color:"#a8bbd4",lineHeight:1.7}}>{issue.fix}</div>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

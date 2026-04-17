@@ -298,8 +298,12 @@ export default async function handler(req, res) {
     }
 
     // Deterministically inject 404/error issue if Claude missed it
-    const errorPages = pages.filter(p => p.status >= 400 || p.status === 0);
-    const allBroken = [...errorPages.map(p => ({ url: p.url, status: p.status })), ...brokenLinks];
+    const isPageUrl = u => !/\.(json|xml|js|css|jpg|jpeg|png|gif|svg|webp|ico|pdf|zip|woff2?|ttf|eot|mp4|mp3|csv|xlsx?|docx?)(\?|$)/i.test(new URL(u).pathname);
+    const errorPages = pages.filter(p => (p.status >= 400 || p.status === 0));
+    const allBroken = [
+      ...errorPages.filter(p => { try { return isPageUrl(p.url); } catch { return true; } }).map(p => ({ url: p.url, status: p.status })),
+      ...brokenLinks.filter(l => { try { return isPageUrl(l.url); } catch { return true; } }),
+    ];
     if (allBroken.length && !(parsed.issues || []).find(i => /404|broken|error.page/i.test(i.id + " " + i.label))) {
       parsed.issues = [...(parsed.issues || []), {
         id: "broken_404",
