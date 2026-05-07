@@ -1,5 +1,5 @@
 const FETCH_HEADERS = { "User-Agent": "Mozilla/5.0 (compatible; SEOScanner/1.0)" };
-const MAX_PAGES = 150; // hard cap; caller passes desired limit via req.body.maxPages
+const MAX_PAGES = 300; // hard cap; caller passes desired limit via req.body.maxPages
 
 const norm = u => { try { const p = new URL(u); return p.origin + p.pathname.replace(/\/$/, "") || p.origin; } catch { return u; } };
 
@@ -227,10 +227,10 @@ export default async function handler(req, res) {
       ? [url, ...sitemapUrls.filter(u => u !== url)].slice(0, pageLimit)
       : [url];
 
-    // 3. Crawl pages in batches of 5
+    // 3. Crawl pages in batches of 10
     const pages = [];
-    for (let i = 0; i < toCrawl.length; i += 5) {
-      const batch = toCrawl.slice(i, i + 5);
+    for (let i = 0; i < toCrawl.length; i += 10) {
+      const batch = toCrawl.slice(i, i + 10);
       const results = await Promise.all(batch.map(u => extractPage(u)));
       pages.push(...results);
     }

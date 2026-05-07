@@ -319,7 +319,7 @@ function App(){
             {view==="results"&&<button onClick={()=>goTo("dashboard")} style={{background:"none",border:"none",color:B.gray,cursor:"pointer",fontSize:13}}>← Dashboard</button>}
             {view==="results"&&scan&&<button onClick={()=>exportCsv(active,scan)} style={{background:"none",border:"1px solid #22304a",color:B.gray,borderRadius:6,padding:"7px 13px",fontSize:12,fontWeight:600,cursor:"pointer"}}>↓ CSV</button>}
             <select value={maxPages} onChange={e=>{const v=parseInt(e.target.value);setMaxPages(v);ls.set("maxPages",String(v));}} style={{background:"#22304a",border:"1px solid #2d3f5a",color:"#a8bbd4",borderRadius:6,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>
-              {[50,100,150].map(n=><option key={n} value={n}>{n} pages</option>)}
+              {[50,100,150,200,300].map(n=><option key={n} value={n}>{n} pages</option>)}
             </select>
             <button onClick={runAll} disabled={scanningAll} style={{background:"#e8291c",color:"#fff",border:"none",borderRadius:6,padding:"7px 16px",fontSize:13,fontWeight:600,cursor:"pointer",opacity:scanningAll?0.6:1,display:"flex",alignItems:"center",gap:6}}>
               {scanningAll?<><Spin/> Scanning...</>:"Scan All"}
