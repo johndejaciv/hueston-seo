@@ -78,6 +78,15 @@ async function extractPage(url) {
     .replace(/\s+/g, " ").trim()
     .split(" ").filter(w => w.length > 2).length;
 
+  // Security headers
+  const secHeaders = {
+    hsts:         !!res.headers.get("strict-transport-security"),
+    xContentType: (res.headers.get("x-content-type-options") || "").toLowerCase().includes("nosniff"),
+    xFrame:       !!res.headers.get("x-frame-options"),
+    csp:          !!res.headers.get("content-security-policy"),
+    referrer:     !!res.headers.get("referrer-policy"),
+  };
+
   // Extract unique internal links (strip query/hash, cap at 50)
   const origin = new URL(url).origin;
   const internalLinks = [...new Set(
@@ -86,7 +95,7 @@ async function extractPage(url) {
       .filter(Boolean)
   )].slice(0, 50);
 
-  return { url, status, ms, title, desc, canon, robotsMeta, h1s, noindex, wordCount, missingAlt, internalLinks };
+  return { url, status, ms, title, desc, canon, robotsMeta, h1s, noindex, wordCount, missingAlt, internalLinks, secHeaders };
 }
 
 function buildSummary(siteUrl, pages, brokenLinks = [], orphaned = []) {
@@ -145,6 +154,18 @@ function buildSummary(siteUrl, pages, brokenLinks = [], orphaned = []) {
   if (totalAltMiss)         lines.push(`Images missing alt text: ${totalAltMiss} total across site, affected pages: ${urls(ok.filter(p => p.missingAlt > 0))}`);
   if (brokenLinks.length)   lines.push(`Broken internal links (4xx/failed): ${brokenLinks.length} → ${brokenLinks.map(l => `${l.url} (HTTP ${l.status || "err"})`).join(", ")}`);
   if (orphaned.length)      lines.push(`Orphaned pages (no internal links pointing to them): ${orphaned.length} → ${orphaned.map(p => p.url).join(", ")}`);
+
+  // Security headers — check homepage (first successful page)
+  const homepage = ok.find(p => { try { const u = new URL(p.url); return u.pathname === "/" || u.pathname === ""; } catch { return false; } }) || ok[0];
+  if (homepage?.secHeaders) {
+    const missingSec = [];
+    if (!homepage.secHeaders.hsts)         missingSec.push("Strict-Transport-Security (HSTS)");
+    if (!homepage.secHeaders.xContentType) missingSec.push("X-Content-Type-Options: nosniff");
+    if (!homepage.secHeaders.xFrame)       missingSec.push("X-Frame-Options");
+    if (!homepage.secHeaders.csp)          missingSec.push("Content-Security-Policy");
+    if (!homepage.secHeaders.referrer)     missingSec.push("Referrer-Policy");
+    if (missingSec.length) lines.push(`Missing security headers: ${missingSec.join(", ")}`);
+  }
 
   lines.push(``, `=== Site Averages ===`);
   lines.push(`Avg response time: ${avgMs}ms | Avg word count: ${avgWords}`);
@@ -314,6 +335,29 @@ export default async function handler(req, res) {
         affected: allBroken.map(l => l.url + " (HTTP " + (l.status || "err") + ")"),
         fix: "Set up 301 redirects from all broken URLs to the most relevant live page. Update or remove internal links pointing to these URLs.",
       }];
+    }
+
+    // Deterministically inject missing security headers if Claude missed them
+    const hp = pages.find(p => p.secHeaders);
+    if (hp?.secHeaders) {
+      const missingSec = [
+        !hp.secHeaders.hsts         && "Strict-Transport-Security (HSTS)",
+        !hp.secHeaders.xContentType && "X-Content-Type-Options",
+        !hp.secHeaders.xFrame       && "X-Frame-Options",
+        !hp.secHeaders.csp          && "Content-Security-Policy",
+        !hp.secHeaders.referrer     && "Referrer-Policy",
+      ].filter(Boolean);
+      if (missingSec.length && !(parsed.issues || []).find(i => /security.header/i.test(i.id + " " + i.label))) {
+        parsed.issues = [...(parsed.issues || []), {
+          id: "missing_security_headers",
+          label: "Missing security headers (" + missingSec.length + ")",
+          priority: !hp.secHeaders.hsts ? "critical" : "medium",
+          category: "Technical",
+          count: missingSec.length,
+          affected: [url],
+          fix: "Add these HTTP response headers via your CDN or server config (Cloudflare, Vercel headers, nginx): " + missingSec.join(", "),
+        }];
+      }
     }
 
     return res.status(200).json({ ...parsed, pagesAudited: pages.length, brokenLinksFound: brokenLinks.length, orphanedFound: orphaned.length });

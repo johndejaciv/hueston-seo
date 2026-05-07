@@ -1,4 +1,4 @@
-import { put, list } from "@vercel/blob";
+import { list } from "@vercel/blob";
 
 let _blobBase = null;
 function getBlobBase() {
@@ -24,14 +24,6 @@ async function getJson(key) {
   } catch { return null; }
 }
 
-async function putJson(key, data) {
-  await put(key, JSON.stringify(data), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  });
-}
-
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
 function getEndOfMonth() {
@@ -39,18 +31,13 @@ function getEndOfMonth() {
   return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 }
 
-const AUDIT_SYSTEM = "You are a senior SEO analyst. Analyze the provided page data and return ONLY valid JSON — no markdown, no extra text.\nSchema: {\"url\":\"<url>\",\"score\":<0-100>,\"summary\":\"<2 sentences>\",\"issues\":[{\"id\":\"<slug>\",\"label\":\"<label>\",\"priority\":\"critical|medium\",\"category\":\"On-Page|Technical|Indexability|Performance|Content|Structured Data|Accessibility\",\"count\":<n>,\"affected\":[\"<url>\"],\"fix\":\"<specific actionable fix>\"}],\"passed\":[\"<label>\"]}\nCheck for: missing/short/long title & meta description, missing or duplicate H1, thin content (<300 words), noindex on indexable page, missing canonical, HTTPS issues, redirects, slow response (>2s), large page (>3MB), robots.txt blocking, missing sitemap, missing structured data, wrong schema type for business, missing OG/Twitter tags, images missing alt, missing viewport, missing lang, low internal links, canonical pointing offsite.\nScoring: start 100, deduct 10-15 per critical, 3-5 per medium. Only flag issues actually present in the data. Be specific in fix instructions.";
-
-function buildPrompt(url) {
-  return "Audit: " + url;
-}
-
 function buildBody(scan) {
-  const crit = scan.issues.filter(i => i.priority === "critical");
-  const med  = scan.issues.filter(i => i.priority === "medium");
+  const crit = (scan.issues || []).filter(i => i.priority === "critical");
+  const med  = (scan.issues || []).filter(i => i.priority === "medium");
   return [
     "## Summary", scan.summary || "", "",
-    "SEO Score: " + scan.score + "/100", "",
+    "SEO Score: " + scan.score + "/100",
+    "Pages audited: " + (scan.pagesAudited || 1), "",
     "## Critical Issues (" + crit.length + ")",
     ...crit.map(i => "- [ ] " + i.label + " — " + i.fix), "",
     "## Medium Issues (" + med.length + ")",
@@ -64,66 +51,55 @@ function buildBody(scan) {
 
 export default async function handler(req, res) {
   const sites = (await getJson("sites.json")) || [];
+  if (sites.length === 0) return res.status(200).json({ message: "No sites in database yet" });
 
-  if (sites.length === 0) {
-    return res.status(200).json({ message: "No sites in database yet" });
-  }
+  const base = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL
+    : process.env.VERCEL_URL
+    ? "https://" + process.env.VERCEL_URL
+    : "http://localhost:3000";
 
-  const base = process.env.VERCEL_URL ? "https://" + process.env.VERCEL_URL : "http://localhost:3000";
   const due = getEndOfMonth();
   const results = [];
 
   for (const url of sites) {
     try {
-      // Step 1: Run SEO scan
-      const scanRes = await fetch(base + "/api/scan", {
+      // Step 1: Full site crawl (same as frontend)
+      const crawlRes = await fetch(base + "/api/crawl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url,
-          model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-          max_tokens: 2000,
-          system: AUDIT_SYSTEM,
-          messages: [{ role: "user", content: buildPrompt(url) }],
-        }),
+        body: JSON.stringify({ url }),
+      });
+      const crawlData = await crawlRes.json();
+      if (!crawlRes.ok || crawlData.error) throw new Error("Crawl failed: " + (crawlData.error || crawlRes.status));
+
+      const scan = { ...crawlData, date: new Date().toISOString(), live: true };
+
+      // Step 2: Save scan + update history via sites API
+      await fetch(base + "/api/sites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_scan", url, scan }),
       });
 
-      const scanData = await scanRes.json();
-      if (!scanRes.ok) throw new Error("Scan API error: " + (scanData.error || JSON.stringify(scanData)));
-      const text = (scanData.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-      const match = text.match(/\{[\s\S]*\}/);
-      if (!match) {
-        results.push({ url, status: "no_json", detail: text.slice(0, 200) || "empty response" });
-        continue;
-      }
+      await delay(3000);
 
-      let parsed;
-      try { parsed = JSON.parse(match[0]); }
-      catch (jsonErr) { results.push({ url, status: "invalid_json", detail: jsonErr.message }); continue; }
-      const scan = { ...parsed, date: new Date().toISOString(), live: true };
-      await putJson("scan-" + encodeURIComponent(url) + ".json", scan);
-
-      await delay(5000);
-
-      // Step 2: Push to Notion
+      // Step 3: Push to Notion
       const title = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }) + " SEO Audit — " + url;
-      const body = buildBody(scan);
-
       const pushRes = await fetch(base + "/api/notion-push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, due, body }),
+        body: JSON.stringify({ title, due, body: buildBody(scan) }),
       });
-
       const pushData = await pushRes.json();
       if (!pushRes.ok) throw new Error("Notion push failed: " + pushData.error);
 
-      results.push({ url, status: "ok", score: scan.score, notion: "pushed" });
+      results.push({ url, status: "ok", score: scan.score, pages: scan.pagesAudited, notion: "pushed" });
     } catch (e) {
       results.push({ url, status: "error", error: e.message });
     }
 
-    await delay(8000);
+    await delay(5000);
   }
 
   return res.status(200).json({ scanned: results.length, results });
